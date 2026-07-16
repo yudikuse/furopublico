@@ -5,7 +5,7 @@ function unauthorized(message = "Autenticação necessária") {
   return new NextResponse(message, {
     status: 401,
     headers: {
-      "WWW-Authenticate": 'Basic realm="Furo Público — Redação", charset="UTF-8"',
+      "WWW-Authenticate": 'Basic realm="Furo Publico - Redacao", charset="UTF-8"',
       "Cache-Control": "no-store"
     }
   });
