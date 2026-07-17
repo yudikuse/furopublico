@@ -1,58 +1,35 @@
-# Workspace interno de investigações
+# Alertas consolidados + filtros no cabeçalho
 
-## O que esta atualização faz
+## Resultado
 
-- cria `/admin/investigacoes`;
-- cria uma página interna clicável para cada investigação;
-- reúne entidades, relações, pagamentos, fontes, perguntas, limites,
-  linha do tempo e manifestações;
-- permite editar título, resumo, achado provisório, evidência, valor,
-  metodologia, ressalvas e tags;
-- permite adicionar fonte, evento da linha do tempo e manifestação;
-- mantém a publicação bloqueada nesta tela;
-- esconde o botão de conversão depois que o alerta já virou investigação;
-- mostra o botão `Abrir investigação` no alerta convertido;
-- troca a mensagem cadastral antiga por uma orientação para consultar a
-  Rede de Entidades;
-- adiciona as investigações em andamento ao painel principal.
-
-## Arquivos que substituem os existentes
-
-- `lib/data.ts`
-- `lib/types.ts`
-- `components/admin-alert-form.tsx`
-- `components/admin-enrichment-panel.tsx`
-- `app/admin/alertas/[id]/page.tsx`
-- `app/admin/page.tsx`
-- `app/layout.tsx`
+- um alerta por parlamentar, regra, categoria e ano;
+- ocorrências individuais preservadas no detalhe;
+- filtros por busca, parlamentar, tipo de sinal, gravidade, status e dossiê;
+- limpeza automática apenas dos alertas legados ainda não trabalhados;
+- alertas convertidos, descartados ou ligados a investigação são preservados;
+- dossiê empresarial fica desabilitado quando um alerta consolidado reúne vários fornecedores.
 
 ## Arquivos novos
 
-- `components/admin-investigation-editor.tsx`
-- `app/api/admin/investigacoes/[id]/route.ts`
-- `app/admin/investigacoes/page.tsx`
-- `app/admin/investigacoes/[id]/page.tsx`
-- `app/investigation-workspace.css`
+- `components/admin-alerts-table.tsx`
+- `components/admin-alert-occurrences.tsx`
+- `app/alerts-consolidated.css`
 
-## Banco de dados
+## Arquivos substituídos
 
-Não é necessário executar SQL.
+- `scripts/camara/detectar-alertas.mjs`
+- `scripts/camara/importar-alertas.mjs`
+- `app/admin/alertas/page.tsx`
+- `app/admin/alertas/[id]/page.tsx`
+- `components/admin-alert-form.tsx`
+- `app/layout.tsx`
 
-## Variáveis
+## Instalação
 
-Não é necessário adicionar variável na Vercel.
+Envie o conteúdo para a raiz do repositório mantendo as pastas. Não há SQL.
 
-## Depois do deploy
-
-Abra:
-
-`https://furopublico.vercel.app/admin`
-
-A investigação da Magda deverá aparecer em **Investigações em andamento**.
-
-Também pode ser aberta diretamente pelo botão **Abrir investigação** dentro
-do alerta convertido.
+Depois do deploy, execute manualmente o workflow **Monitoramento Câmara — 57ª Legislatura** para recriar e importar a fila consolidada.
 
 ## Commit sugerido
 
-`Adicionar workspace interno de investigação`
+`Consolidar alertas e adicionar filtros na fila`

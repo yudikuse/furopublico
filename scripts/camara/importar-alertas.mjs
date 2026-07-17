@@ -13,13 +13,11 @@ if (!url || !key) {
 }
 
 let file = getArg("file");
-
 if (!file) {
   const directory = path.resolve("data/alerts");
   const files = (await fs.readdir(directory))
     .filter((name) => name.endsWith(".json"))
     .sort();
-
   file = files.at(-1) ? path.resolve(directory, files.at(-1)) : null;
 }
 
@@ -85,14 +83,36 @@ const rows = [...uniqueAlerts.entries()].map(([externalId, alert]) => {
       manualInterpretation:
         previousEvidence.manualInterpretation ??
         incomingEvidence.manualInterpretation ??
+        undefined,
+      entityNetwork:
+        previousEvidence.entityNetwork ??
+        incomingEvidence.entityNetwork ??
         undefined
     }
   };
 });
 
+// Remove somente a fila automática antiga ainda não trabalhada.
+// Alertas descartados, convertidos ou ligados a investigação são preservados.
+const legacyTitles = [
+  "Possível documento repetido no mesmo gabinete",
+  "Fornecedor concentra a maior parte de uma categoria de despesas",
+  "Documento com valor muito acima do padrão da categoria"
+];
+
+for (const title of legacyTitles) {
+  const { error } = await supabase
+    .from("alerts")
+    .delete()
+    .eq("title", title)
+    .in("status", ["novo", "em_revisao"])
+    .is("investigation_id", null);
+
+  if (error) throw error;
+}
+
 console.log(`Alertas no arquivo: ${alerts.length}`);
-console.log(`Alertas únicos: ${rows.length}`);
-console.log(`Duplicados eliminados: ${alerts.length - rows.length}`);
+console.log(`Alertas consolidados únicos: ${rows.length}`);
 
 for (let index = 0; index < rows.length; index += 200) {
   const batch = rows.slice(index, index + 200);
@@ -102,7 +122,9 @@ for (let index = 0; index < rows.length; index += 200) {
   });
 
   if (error) throw error;
-  console.log(`Importados ${Math.min(index + batch.length, rows.length)} de ${rows.length}`);
+  console.log(
+    `Importados ${Math.min(index + batch.length, rows.length)} de ${rows.length}`
+  );
 }
 
-console.log("Importação concluída com preservação dos dossiês automáticos.");
+console.log("Importação concluída com alertas consolidados e histórico editorial preservado.");

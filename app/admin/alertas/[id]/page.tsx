@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminAlertForm } from "@/components/admin-alert-form";
+import { AdminAlertOccurrences } from "@/components/admin-alert-occurrences";
 import { AdminEnrichmentPanel } from "@/components/admin-enrichment-panel";
 import { AdminEntityNetwork } from "@/components/admin-entity-network";
 import { getAlertById } from "@/lib/data";
@@ -68,11 +69,11 @@ export default async function AlertDetailPage({ params }: PageProps) {
             <strong>{alert.deputyName ?? "Não identificado"}</strong>
           </article>
           <article>
-            <span>Fornecedor</span>
+            <span>Fornecedores</span>
             <strong>{alert.supplierName ?? "Não identificado"}</strong>
           </article>
           <article>
-            <span>Valor observado</span>
+            <span>Valor relacionado</span>
             <strong>{formatCurrency(alert.amount)}</strong>
           </article>
           <article>
@@ -80,6 +81,8 @@ export default async function AlertDetailPage({ params }: PageProps) {
             <strong>{formatDate(alert.detectedAt)}</strong>
           </article>
         </div>
+
+        <AdminAlertOccurrences alert={alert} />
 
         {alert.enrichment ? (
           <AdminEnrichmentPanel enrichment={alert.enrichment} />

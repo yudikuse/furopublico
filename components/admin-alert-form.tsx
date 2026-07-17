@@ -79,13 +79,16 @@ export function AdminAlertForm({ alert }: Props) {
   }
 
   const busy = pendingAction !== null;
+  const supplierCount = Number(alert.evidence.supplierCount ?? 1);
+  const broadConsolidatedAlert =
+    alert.evidence.consolidated === true && supplierCount > 1;
 
   return (
     <form ref={formRef} className="editorial-form admin-alert-form">
       <button
         type="button"
         className="button button-enrichment"
-        disabled={busy}
+        disabled={busy || broadConsolidatedAlert}
         onClick={() => run("enrich")}
       >
         {pendingAction === "enrich"
@@ -96,8 +99,9 @@ export function AdminAlertForm({ alert }: Props) {
       </button>
 
       <p className="form-helper">
-        Consulta o histórico da Câmara na 57ª Legislatura, soma pagamentos,
-        compara fornecedores da categoria e busca o cadastro do CNPJ.
+        {broadConsolidatedAlert
+          ? "Este alerta reúne vários fornecedores. Abra as ocorrências e converta o conjunto em investigação; o dossiê empresarial individual será feito a partir da entidade escolhida."
+          : "Consulta o histórico da Câmara na 57ª Legislatura, soma pagamentos, compara fornecedores da categoria e busca o cadastro do CNPJ."}
       </p>
 
       {alert.investigationId ? (
