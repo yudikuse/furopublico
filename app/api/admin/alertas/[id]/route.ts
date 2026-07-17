@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { syncInvestigationFromEntityNetwork } from "@/lib/investigation-network-sync";
 import { createSupabaseAdmin, hasSupabaseConfig } from "@/lib/supabase-admin";
+import type { AlertEntityNetwork } from "@/lib/types";
 
 const inputSchema = z.object({
   action: z.enum(["save", "convert"]),
@@ -43,7 +45,10 @@ function sourceUrlsFromEvidence(evidence: Record<string, unknown>) {
     }
   }
 
-  walk(evidence);
+  const originalEvidence = { ...evidence };
+  delete originalEvidence.enrichment;
+  delete originalEvidence.entityNetwork;
+  walk(originalEvidence);
 
   return [...urls].map((url, index) => ({
     title: `Documento automático ${index + 1}`,
@@ -72,14 +77,15 @@ function factsFromEvidence(evidence: Record<string, unknown>) {
   ];
 
   return preferred
-    .filter(([, value]) => value !== undefined && value !== null && value !== "")
+    .filter(
+      ([, value]) =>
+        value !== undefined && value !== null && value !== ""
+    )
     .map(([label, value]) => ({
       label,
-      value:
-        typeof value === "number"
-          ? String(value)
-          : String(value),
-      detail: "Dado extraído automaticamente. Exige confirmação documental."
+      value: String(value),
+      detail:
+        "Dado extraído automaticamente. Exige confirmação documental."
     }));
 }
 
@@ -97,7 +103,10 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (!parsed.success) {
       return NextResponse.json(
-        { message: parsed.error.issues[0]?.message ?? "Dados inválidos." },
+        {
+          message:
+            parsed.error.issues[0]?.message ?? "Dados inválidos."
+        },
         { status: 400 }
       );
     }
@@ -169,7 +178,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     const slugBase = slugify(
       `${alert.deputy_name ?? "parlamentar"}-${alert.title}`
     );
-    const slug = `${slugBase}-${String(alert.external_id ?? id).slice(0, 8)}`;
+    const slug = `${slugBase}-${String(
+      alert.external_id ?? id
+    ).slice(0, 8)}`;
 
     const entities = [
       alert.deputy_name
@@ -191,42 +202,43 @@ export async function PATCH(request: Request, context: RouteContext) {
     const sources = sourceUrlsFromEvidence(evidence);
     const facts = factsFromEvidence(evidence);
 
-    const { data: investigation, error: investigationError } = await supabase
-      .from("investigations")
-      .insert({
-        slug,
-        title,
-        summary:
-          "Pista gerada por cruzamento automático de despesas da Câmara. O registro foi encaminhado para apuração humana antes de qualquer publicação.",
-        finding:
-          `${alert.rule}. O alerta estatístico não comprova irregularidade e deve ser confrontado com documentos, contexto, justificativas e eventual resposta dos citados.`,
-        category: "despesas",
-        status: "em_apuracao",
-        confidence: "pista",
-        involved_amount: alert.amount ?? null,
-        is_featured: false,
-        is_demo: false,
-        tags: ["alerta-automatico", "57-legislatura", "despesas"],
-        entities,
-        facts,
-        sources,
-        timeline: [
-          {
-            date: new Date().toISOString().slice(0, 10),
-            title: "Alerta convertido em investigação",
-            description:
-              "A pista automática foi incorporada à fila editorial para apuração humana."
-          }
-        ],
-        responses: [],
-        methodology:
-          "A investigação nasceu de regra automatizada aplicada aos registros de despesas da Câmara. A redação deve reproduzir o cálculo, conferir os documentos originais, buscar hipóteses legítimas e solicitar manifestação dos citados.",
-        caveat:
-          "Este registro é apenas uma pista interna. Concentração de fornecedor, valor elevado ou repetição aparente não demonstram, isoladamente, ilegalidade ou desvio.",
-        created_by: process.env.ADMIN_USER ?? "editor"
-      })
-      .select("id")
-      .single();
+    const { data: investigation, error: investigationError } =
+      await supabase
+        .from("investigations")
+        .insert({
+          slug,
+          title,
+          summary:
+            "Pista gerada por cruzamento automático de despesas da Câmara. O registro foi encaminhado para apuração humana antes de qualquer publicação.",
+          finding:
+            `${alert.rule}. O alerta estatístico não comprova irregularidade e deve ser confrontado com documentos, contexto, justificativas e eventual resposta dos citados.`,
+          category: "despesas",
+          status: "em_apuracao",
+          confidence: "pista",
+          involved_amount: alert.amount ?? null,
+          is_featured: false,
+          is_demo: false,
+          tags: ["alerta-automatico", "57-legislatura", "despesas"],
+          entities,
+          facts,
+          sources,
+          timeline: [
+            {
+              date: new Date().toISOString().slice(0, 10),
+              title: "Alerta convertido em investigação",
+              description:
+                "A pista automática foi incorporada à fila editorial para apuração humana."
+            }
+          ],
+          responses: [],
+          methodology:
+            "A investigação nasceu de regra automatizada aplicada aos registros de despesas da Câmara. A redação deve reproduzir o cálculo, conferir os documentos originais, buscar hipóteses legítimas e solicitar manifestação dos citados.",
+          caveat:
+            "Este registro é apenas uma pista interna. Concentração de fornecedor, valor elevado ou repetição aparente não demonstram, isoladamente, ilegalidade ou desvio.",
+          created_by: process.env.ADMIN_USER ?? "editor"
+        })
+        .select("id")
+        .single();
 
     if (investigationError) throw investigationError;
 
@@ -241,6 +253,21 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (updateError) throw updateError;
 
+    const network =
+      evidence.entityNetwork &&
+      typeof evidence.entityNetwork === "object"
+        ? (evidence.entityNetwork as AlertEntityNetwork)
+        : undefined;
+
+    const investigationSync = network
+      ? await syncInvestigationFromEntityNetwork({
+          supabase,
+          investigationId: investigation.id,
+          alertId: id,
+          network
+        })
+      : undefined;
+
     await supabase.from("editorial_audit_log").insert([
       {
         entity_type: "investigation",
@@ -251,7 +278,8 @@ export async function PATCH(request: Request, context: RouteContext) {
         after_data: {
           alert_id: id,
           title,
-          status: "em_apuracao"
+          status: "em_apuracao",
+          entity_network_synced: Boolean(investigationSync)
         }
       },
       {
@@ -271,7 +299,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     ]);
 
     return NextResponse.json({
-      message: "Alerta convertido em investigação.",
+      message: investigationSync
+        ? "Alerta convertido e rede sincronizada com a investigação."
+        : "Alerta convertido em investigação.",
       investigationId: investigation.id
     });
   } catch (error) {

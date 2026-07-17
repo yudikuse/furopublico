@@ -32,26 +32,39 @@ export type EvidenceSource = {
   accessedAt?: string;
   documentDate?: string;
   note?: string;
+  sourceAlertId?: string;
 };
 
 export type InvolvedEntity = {
   name: string;
-  type: "pessoa" | "empresa" | "orgao" | "municipio" | "partido";
+  type:
+    | "pessoa"
+    | "empresa"
+    | "orgao"
+    | "municipio"
+    | "partido"
+    | "imovel";
   role: string;
   party?: string;
   state?: string;
+  taxId?: string;
+  sourceUrl?: string;
+  verification?: EntityVerification;
+  sourceAlertId?: string;
 };
 
 export type InvestigationFact = {
   label: string;
   value: string;
   detail?: string;
+  sourceAlertId?: string;
 };
 
 export type InvestigationTimelineItem = {
   date: string;
   title: string;
   description: string;
+  sourceAlertId?: string;
 };
 
 export type InvestigationResponse = {

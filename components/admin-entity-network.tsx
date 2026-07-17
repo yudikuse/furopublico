@@ -44,6 +44,9 @@ export function AdminEntityNetwork({
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
   const [state, setState] = useState<"idle" | "success" | "error">("idle");
+  const [entityType, setEntityType] = useState<
+    AlertNetworkEntity["type"]
+  >("empresa");
 
   const entityNames = useMemo(
     () =>
@@ -76,11 +79,13 @@ export function AdminEntityNetwork({
       setState("success");
       setMessage(data.message ?? "Rede atualizada.");
       router.refresh();
+      return true;
     } catch (error) {
       setState("error");
       setMessage(
         error instanceof Error ? error.message : "Erro inesperado."
       );
+      return false;
     } finally {
       setPending(false);
     }
@@ -91,7 +96,7 @@ export function AdminEntityNetwork({
     const form = event.currentTarget;
     const formData = new FormData(form);
 
-    await send({
+    const saved = await send({
       action: "add",
       entity: {
         name: String(formData.get("name") ?? ""),
@@ -106,7 +111,10 @@ export function AdminEntityNetwork({
       }
     });
 
-    form.reset();
+    if (saved) {
+      form.reset();
+      setEntityType("empresa");
+    }
   }
 
   return (
@@ -140,12 +148,34 @@ export function AdminEntityNetwork({
           <div className="form-grid three-columns">
             <label>
               Nome ou razão social
-              <input name="name" required minLength={2} maxLength={220} />
+              <span>
+                Para empresa com CNPJ válido, este campo é opcional: a razão
+                social será obtida do cadastro.
+              </span>
+              <input
+                name="name"
+                required={entityType !== "empresa"}
+                minLength={2}
+                maxLength={220}
+                placeholder={
+                  entityType === "empresa"
+                    ? "Opcional quando o CNPJ estiver preenchido"
+                    : "Informe o nome da parte"
+                }
+              />
             </label>
 
             <label>
               Tipo
-              <select name="type" defaultValue="empresa">
+              <select
+                name="type"
+                value={entityType}
+                onChange={(event) =>
+                  setEntityType(
+                    event.target.value as AlertNetworkEntity["type"]
+                  )
+                }
+              >
                 <option value="empresa">Empresa</option>
                 <option value="pessoa">Pessoa</option>
                 <option value="imovel">Imóvel</option>
@@ -155,7 +185,16 @@ export function AdminEntityNetwork({
 
             <label>
               CNPJ/CPF, quando houver
-              <input name="taxId" maxLength={18} />
+              <span>
+                Para empresa, informe o CNPJ para preencher a razão social
+                automaticamente.
+              </span>
+              <input
+                name="taxId"
+                inputMode="numeric"
+                maxLength={18}
+                placeholder="00.000.000/0000-00"
+              />
             </label>
           </div>
 
