@@ -1,0 +1,64 @@
+name: Monitoramento Câmara — 57ª Legislatura
+
+on:
+  workflow_dispatch:
+    inputs:
+      year:
+        description: "Ano das despesas (2023 a 2027)"
+        required: true
+        default: "2026"
+      state:
+        description: "UF opcional para teste, por exemplo GO. Deixe vazio para Brasil."
+        required: false
+        default: ""
+  schedule:
+    - cron: "20 7 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  detectar-alertas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      DATA_USER_AGENT: ${{ secrets.DATA_USER_AGENT }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run camara:deputados
+
+      - name: Definir período
+        id: period
+        shell: bash
+        run: |
+          YEAR="${{ github.event.inputs.year }}"
+          if [ -z "$YEAR" ]; then YEAR=$(date -u +%Y); fi
+          STATE="${{ github.event.inputs.state }}"
+          echo "year=$YEAR" >> "$GITHUB_OUTPUT"
+          echo "state=$STATE" >> "$GITHUB_OUTPUT"
+
+      - name: Coletar despesas
+        shell: bash
+        run: |
+          if [ -n "${{ steps.period.outputs.state }}" ]; then
+            npm run camara:despesas -- --year=${{ steps.period.outputs.year }} --state=${{ steps.period.outputs.state }} --all
+          else
+            npm run camara:despesas -- --year=${{ steps.period.outputs.year }} --all
+          fi
+
+      - run: npm run camara:alertas
+
+      - name: Importar alertas para Supabase
+        if: ${{ env.NEXT_PUBLIC_SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
+        run: npm run camara:importar-alertas
