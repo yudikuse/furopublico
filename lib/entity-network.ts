@@ -482,7 +482,10 @@ export async function buildEntityNetwork(input: {
   const partnerEntities = new Map<string, AlertNetworkEntity>();
 
   for (const company of companies) {
-    for (const partner of company.company?.partners ?? []) {
+    const companyProfile = company.company;
+    if (!companyProfile) continue;
+
+    for (const partner of companyProfile.partners) {
       const key = normalizeText(partner.name);
       let partnerEntity = partnerEntities.get(key);
 
@@ -503,10 +506,10 @@ export async function buildEntityNetwork(input: {
               "Sócio ou administrador retornado pelo cadastro",
             origin: "cadastro_empresarial",
             verification: "cadastro",
-            sourceUrl: company.company.sourceUrl,
+            sourceUrl: companyProfile.sourceUrl,
             sourceNote:
               `Pessoa retornada no quadro societário de ${
-                company.company.legalName ?? company.name
+                companyProfile.legalName ?? company.name
               }.`
           };
           entityMap.set(`pessoa:${key}`, partnerEntity);
@@ -524,9 +527,9 @@ export async function buildEntityNetwork(input: {
             partner.qualification ??
             "Sócio ou administrador da empresa",
           detail:
-            `Relação retornada por ${company.company?.source}. Confirme alterações e datas na Junta Comercial ou Receita antes de publicar.`,
+            `Relação retornada por ${companyProfile.source}. Confirme alterações e datas na Junta Comercial ou Receita antes de publicar.`,
           verification: "cadastro",
-          sourceUrl: company.company?.sourceUrl
+          sourceUrl: companyProfile.sourceUrl
         })
       );
     }
