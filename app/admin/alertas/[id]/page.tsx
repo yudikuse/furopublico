@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminAlertForm } from "@/components/admin-alert-form";
 import { AdminEnrichmentPanel } from "@/components/admin-enrichment-panel";
+import { AdminEntityNetwork } from "@/components/admin-entity-network";
 import { getAlertById } from "@/lib/data";
 import { formatCurrency, formatDate } from "@/lib/format";
 
@@ -29,9 +30,10 @@ function collectDocumentLinks(evidence: Record<string, unknown>) {
     }
   }
 
-  const evidenceWithoutEnrichment = { ...evidence };
-  delete evidenceWithoutEnrichment.enrichment;
-  walk(evidenceWithoutEnrichment);
+  const evidenceWithoutGeneratedData = { ...evidence };
+  delete evidenceWithoutGeneratedData.enrichment;
+  delete evidenceWithoutGeneratedData.entityNetwork;
+  walk(evidenceWithoutGeneratedData);
   return [...urls];
 }
 
@@ -86,12 +88,18 @@ export default async function AlertDetailPage({ params }: PageProps) {
             <p className="eyebrow">PRÓXIMO PASSO</p>
             <h2>Transforme o alerta em dossiê</h2>
             <p>
-              Use o botão <strong>Gerar dossiê automático</strong> para buscar
-              o histórico do fornecedor, somar pagamentos, comparar a categoria
-              e consultar o cadastro empresarial.
+              Use o botão <strong>Gerar dossiê automático</strong> para
+              buscar o histórico do fornecedor, somar pagamentos,
+              comparar a categoria e consultar o cadastro empresarial.
             </p>
           </div>
         )}
+
+        <AdminEntityNetwork
+          alertId={alert.id}
+          network={alert.entityNetwork}
+          defaultSourceUrl={links[0]}
+        />
 
         <div className="admin-alert-layout">
           <div className="admin-panel">
@@ -101,15 +109,20 @@ export default async function AlertDetailPage({ params }: PageProps) {
 
             <p className="admin-warning">
               O alerta estatístico não comprova irregularidade. Confirme o
-              período, a natureza da despesa, possíveis estornos, justificativas
-              e o conteúdo dos documentos originais.
+              período, a natureza da despesa, possíveis estornos,
+              justificativas e o conteúdo dos documentos originais.
             </p>
 
             {links.length ? (
               <div className="document-links">
                 <h3>Links encontrados nos registros</h3>
                 {links.map((url) => (
-                  <a key={url} href={url} target="_blank" rel="noreferrer">
+                  <a
+                    key={url}
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     Abrir documento ou fonte ↗
                     <small>{url}</small>
                   </a>
@@ -117,7 +130,8 @@ export default async function AlertDetailPage({ params }: PageProps) {
               </div>
             ) : (
               <p className="muted">
-                Nenhum endereço eletrônico foi encontrado automaticamente.
+                Nenhum endereço eletrônico foi encontrado
+                automaticamente.
               </p>
             )}
 
@@ -127,7 +141,9 @@ export default async function AlertDetailPage({ params }: PageProps) {
                 {JSON.stringify(
                   Object.fromEntries(
                     Object.entries(alert.evidence).filter(
-                      ([key]) => key !== "enrichment"
+                      ([key]) =>
+                        key !== "enrichment" &&
+                        key !== "entityNetwork"
                     )
                   ),
                   null,
@@ -143,7 +159,10 @@ export default async function AlertDetailPage({ params }: PageProps) {
             {alert.investigationId ? (
               <div className="admin-panel linked-investigation">
                 <h2>Investigação criada</h2>
-                <p>Este alerta já foi convertido e está relacionado ao registro:</p>
+                <p>
+                  Este alerta já foi convertido e está relacionado ao
+                  registro:
+                </p>
                 <code>{alert.investigationId}</code>
               </div>
             ) : null}

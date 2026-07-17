@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import "./globals.css";
+import "./entity-network.css";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -18,16 +20,21 @@ export const metadata: Metadata = {
     locale: "pt_BR",
     siteName: "Furo Público",
     title: "Furo Público — Investigações da 57ª Legislatura",
-    description: "O que disseram. O que os documentos mostram. O que foi entregue."
+    description:
+      "O que disseram. O que os documentos mostram. O que foi entregue."
   },
   robots: { index: true, follow: true }
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({
+  children
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="pt-BR">
       <body>
-        <a className="skip-link" href="#conteudo">Pular para o conteúdo</a>
+        <a className="skip-link" href="#conteudo">
+          Pular para o conteúdo
+        </a>
         <Header />
         <main id="conteudo">{children}</main>
         <Footer />

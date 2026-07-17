@@ -87,7 +87,6 @@ export type Investigation = {
   caveat: string;
 };
 
-
 export type EnrichmentFlag = {
   level: "info" | "atencao" | "prioridade";
   title: string;
@@ -101,7 +100,8 @@ export type AlertEnrichment = {
   deputy: { id?: string; name?: string };
   supplier: { taxId?: string; name?: string };
   company: {
-    source: "BrasilAPI";
+    source: "BrasilAPI" | "CNPJ.ws" | "OpenCNPJ";
+    sourceUrl: string;
     taxId: string;
     legalName?: string;
     tradeName?: string;
@@ -115,6 +115,8 @@ export type AlertEnrichment = {
     municipality?: string;
     state?: string;
     partners: Array<{ name: string; qualification?: string }>;
+    dataUpdatedAt?: string;
+    warning: string;
     raw: Record<string, unknown>;
   } | null;
   history: {
@@ -131,7 +133,12 @@ export type AlertEnrichment = {
     recurringCount: number;
     annualTotals: Array<{ label: string; total: number }>;
     monthlyTotals: Array<{ label: string; total: number }>;
-    topSuppliers: Array<{ name: string; taxId: string; total: number; count: number }>;
+    topSuppliers: Array<{
+      name: string;
+      taxId: string;
+      total: number;
+      count: number;
+    }>;
     duplicateCandidates: Array<{
       count: number;
       supplierName: string;
@@ -158,6 +165,111 @@ export type AlertEnrichment = {
   disclaimer: string;
 };
 
+export type EntityVerification =
+  | "camara"
+  | "documento"
+  | "cadastro"
+  | "coincidencia"
+  | "nao_verificado";
+
+export type AlertEntityType = "pessoa" | "empresa" | "imovel" | "orgao";
+
+export type AlertManualEntity = {
+  id: string;
+  name: string;
+  type: AlertEntityType;
+  role: string;
+  taxId?: string;
+  sourceUrl?: string;
+  sourceNote: string;
+  verification: "documento" | "nao_verificado";
+  addedAt: string;
+};
+
+export type EntityCompanyProfile = {
+  source: "BrasilAPI" | "CNPJ.ws" | "OpenCNPJ";
+  sourceUrl: string;
+  taxId: string;
+  legalName?: string;
+  tradeName?: string;
+  status?: string;
+  openingDate?: string;
+  mainActivity?: string;
+  legalNature?: string;
+  size?: string;
+  capital?: number;
+  address?: string;
+  municipality?: string;
+  state?: string;
+  partners: Array<{ name: string; qualification?: string }>;
+  dataUpdatedAt?: string;
+  warning: string;
+};
+
+export type AlertNetworkEntity = {
+  id: string;
+  name: string;
+  type: AlertEntityType;
+  role: string;
+  taxId?: string;
+  origin:
+    | "camara"
+    | "documento_manual"
+    | "cadastro_empresarial"
+    | "cruzamento";
+  verification: EntityVerification;
+  sourceUrl?: string;
+  sourceNote?: string;
+  company?: EntityCompanyProfile;
+  payments?: {
+    count: number;
+    total: number;
+    firstDate?: string;
+    lastDate?: string;
+    documents: Array<{
+      date?: string;
+      amount: number;
+      documentNumber: string;
+      documentCode: string;
+      url?: string;
+    }>;
+  };
+};
+
+export type AlertEntityRelation = {
+  id: string;
+  fromEntityId: string;
+  toEntityId: string;
+  type:
+    | "papel_documental"
+    | "fornecedor_camara"
+    | "pagamento_ceap"
+    | "socio_de"
+    | "socio_compartilhado"
+    | "endereco_coincidente"
+    | "nome_identico";
+  label: string;
+  detail: string;
+  verification: EntityVerification;
+  sourceUrl?: string;
+};
+
+export type AlertEntityNetwork = {
+  version: 1;
+  generatedAt: string;
+  manualEntities: AlertManualEntity[];
+  entities: AlertNetworkEntity[];
+  relations: AlertEntityRelation[];
+  questions: string[];
+  sourceGaps: string[];
+  sourceStatus: {
+    camara: "ok" | "partial" | "error";
+    companyProfiles: "ok" | "partial" | "not_applicable" | "error";
+    errors: string[];
+  };
+  disclaimer: string;
+};
+
 export type InvestigationAlert = {
   id: string;
   title: string;
@@ -172,4 +284,5 @@ export type InvestigationAlert = {
   reviewerNotes?: string;
   investigationId?: string;
   enrichment?: AlertEnrichment;
+  entityNetwork?: AlertEntityNetwork;
 };

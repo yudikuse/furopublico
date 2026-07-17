@@ -2,7 +2,12 @@ import "server-only";
 import { cache } from "react";
 import { demoAlerts, demoInvestigations } from "@/lib/demo-data";
 import { createSupabaseAdmin, hasSupabaseConfig } from "@/lib/supabase-admin";
-import type { AlertEnrichment, Investigation, InvestigationAlert } from "@/lib/types";
+import type {
+  AlertEnrichment,
+  AlertEntityNetwork,
+  Investigation,
+  InvestigationAlert
+} from "@/lib/types";
 
 function normalizeInvestigation(row: Record<string, unknown>): Investigation {
   return {
@@ -36,6 +41,11 @@ function normalizeInvestigation(row: Record<string, unknown>): Investigation {
 }
 
 function normalizeAlert(row: Record<string, unknown>): InvestigationAlert {
+  const evidence =
+    row.evidence && typeof row.evidence === "object"
+      ? (row.evidence as Record<string, unknown>)
+      : {};
+
   return {
     id: String(row.id),
     title: String(row.title),
@@ -49,15 +59,17 @@ function normalizeAlert(row: Record<string, unknown>): InvestigationAlert {
       row.amount === null || row.amount === undefined
         ? undefined
         : Number(row.amount),
-    evidence: (row.evidence as Record<string, unknown> | null) ?? {},
+    evidence,
     reviewerNotes: row.reviewer_notes ? String(row.reviewer_notes) : undefined,
-    investigationId: row.investigation_id ? String(row.investigation_id) : undefined,
-    enrichment:
-      row.evidence &&
-      typeof row.evidence === "object" &&
-      (row.evidence as Record<string, unknown>).enrichment
-        ? ((row.evidence as Record<string, unknown>).enrichment as AlertEnrichment)
-        : undefined
+    investigationId: row.investigation_id
+      ? String(row.investigation_id)
+      : undefined,
+    enrichment: evidence.enrichment
+      ? (evidence.enrichment as AlertEnrichment)
+      : undefined,
+    entityNetwork: evidence.entityNetwork
+      ? (evidence.entityNetwork as AlertEntityNetwork)
+      : undefined
   };
 }
 
