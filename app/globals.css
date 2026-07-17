@@ -280,3 +280,193 @@ h1, h2, h3, .footer-brand { font-family: Georgia, "Times New Roman", serif; line
   .footer-grid > div:first-child { grid-column: auto; }
   .editorial-form { padding: 20px; }
 }
+
+/* ============================================================
+   MÓDULO DE APURAÇÃO DE ALERTAS
+   Cole este bloco no FINAL de app/globals.css
+   ============================================================ */
+
+.admin-alert-link {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+}
+
+.admin-alert-link:hover {
+  color: var(--red);
+  text-decoration-color: var(--red);
+}
+
+.admin-alert-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 30px;
+  margin: 35px 0 28px;
+  padding: 34px;
+  background: #fff;
+  border: 1px solid #d6d5d1;
+}
+
+.admin-alert-hero h1 {
+  margin: 0 0 15px;
+  max-width: 900px;
+  font-size: clamp(38px, 5vw, 64px);
+  font-weight: 500;
+}
+
+.admin-alert-hero p:last-child {
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: 17px;
+}
+
+.admin-alert-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.admin-alert-metrics article {
+  min-width: 0;
+  padding: 20px;
+  background: #fff;
+  border: 1px solid #d6d5d1;
+}
+
+.admin-alert-metrics span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.admin-alert-metrics strong {
+  display: block;
+  overflow-wrap: anywhere;
+  font: 500 21px/1.25 Georgia, serif;
+}
+
+.admin-alert-layout {
+  display: grid;
+  grid-template-columns: 1.25fr .75fr;
+  gap: 22px;
+  align-items: start;
+}
+
+.admin-warning {
+  padding: 16px;
+  color: #68470d;
+  background: #fff1cf;
+  border-left: 4px solid var(--amber);
+}
+
+.document-links {
+  display: grid;
+  gap: 10px;
+  margin: 28px 0;
+}
+
+.document-links h3 {
+  margin: 0 0 5px;
+}
+
+.document-links a {
+  display: block;
+  padding: 14px;
+  color: var(--red-dark);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  font-weight: 900;
+}
+
+.document-links a:hover {
+  border-color: var(--red);
+}
+
+.document-links small {
+  display: block;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.evidence-json {
+  margin-top: 24px;
+  border-top: 1px solid var(--line);
+}
+
+.evidence-json summary {
+  padding: 18px 0;
+  cursor: pointer;
+  color: var(--red);
+  font-weight: 900;
+}
+
+.evidence-json pre {
+  max-height: 680px;
+  overflow: auto;
+  margin: 0;
+  padding: 18px;
+  color: #e9e9e9;
+  background: #171717;
+  font: 12px/1.55 Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.admin-alert-form {
+  position: sticky;
+  top: 95px;
+}
+
+.admin-form-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.linked-investigation {
+  margin-top: 18px;
+}
+
+.linked-investigation h2 {
+  margin-top: 0;
+}
+
+.linked-investigation code {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: 12px;
+  background: var(--paper);
+}
+
+@media (max-width: 900px) {
+  .admin-alert-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-alert-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .admin-alert-form {
+    position: static;
+  }
+}
+
+@media (max-width: 650px) {
+  .admin-alert-hero {
+    flex-direction: column;
+  }
+
+  .admin-alert-metrics {
+    grid-template-columns: 1fr;
+  }
+}
