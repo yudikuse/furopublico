@@ -1,35 +1,41 @@
-# Alertas consolidados + filtros no cabeçalho
+# UX das ocorrências consolidadas
 
-## Resultado
+Instale este pacote depois de `furo-publico-alertas-consolidados-filtros`.
 
-- um alerta por parlamentar, regra, categoria e ano;
-- ocorrências individuais preservadas no detalhe;
-- filtros por busca, parlamentar, tipo de sinal, gravidade, status e dossiê;
-- limpeza automática apenas dos alertas legados ainda não trabalhados;
-- alertas convertidos, descartados ou ligados a investigação são preservados;
-- dossiê empresarial fica desabilitado quando um alerta consolidado reúne vários fornecedores.
+## O que muda
 
-## Arquivos novos
+- visão padrão agrupada por fornecedor;
+- valores em colunas próprias;
+- valor relacionado, maior pagamento, sinais e documentos por fornecedor;
+- expansão para conferir cada ocorrência;
+- links para o documento original quando a Câmara fornece URL;
+- busca por fornecedor, CNPJ, documento ou categoria;
+- filtro por categoria e valor mínimo;
+- opção “somente com documento”;
+- ordenação por valor, maior pagamento, ocorrências, data ou nome;
+- paginação de 25, 50, 100 ou todos;
+- alternância entre “Por fornecedor” e “Sinais individuais”.
 
-- `components/admin-alerts-table.tsx`
+## Arquivos
+
+Substitua:
+
 - `components/admin-alert-occurrences.tsx`
 - `app/alerts-consolidated.css`
-
-## Arquivos substituídos
-
 - `scripts/camara/detectar-alertas.mjs`
-- `scripts/camara/importar-alertas.mjs`
-- `app/admin/alertas/page.tsx`
-- `app/admin/alertas/[id]/page.tsx`
-- `components/admin-alert-form.tsx`
-- `app/layout.tsx`
 
-## Instalação
+## Banco e Vercel
 
-Envie o conteúdo para a raiz do repositório mantendo as pastas. Não há SQL.
+Não exige SQL nem nova variável.
 
-Depois do deploy, execute manualmente o workflow **Monitoramento Câmara — 57ª Legislatura** para recriar e importar a fila consolidada.
+## GitHub Actions
+
+Após o deploy, rode novamente:
+
+`Monitoramento Câmara — 57ª Legislatura`
+
+A nova execução é necessária para gravar URLs e registros completos dos documentos no alerta consolidado.
 
 ## Commit sugerido
 
-`Consolidar alertas e adicionar filtros na fila`
+`Melhorar UX e documentos dos alertas consolidados`

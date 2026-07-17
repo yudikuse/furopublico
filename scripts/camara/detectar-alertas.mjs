@@ -135,6 +135,7 @@ for (const group of duplicateGroups.values()) {
       individualValue: first.netValue,
       relatedAmount: first.netValue * group.length,
       repetitionCount: group.length,
+      documentUrl: String(first.raw?.urlDocumento ?? first.raw?.urlDocument ?? ""),
       records: group.map((item) => item.raw)
     }
   });
@@ -159,11 +160,13 @@ for (const expense of expenses) {
     name: expense.supplierName,
     taxId: expense.supplierTaxId,
     total: 0,
-    count: 0
+    count: 0,
+    records: []
   };
 
   supplier.total += expense.netValue;
   supplier.count += 1;
+  supplier.records.push(expense.raw);
   group.suppliers.set(supplierKey, supplier);
   categoryGroups.set(key, group);
 }
@@ -192,7 +195,8 @@ for (const group of categoryGroups.values()) {
         categoryTotal: group.total,
         supplierTotal: supplier.total,
         share,
-        documentCount: supplier.count
+        documentCount: supplier.count,
+        records: supplier.records
       }
     });
   }
@@ -245,6 +249,7 @@ for (const [category, group] of byCategory) {
         category,
         documentNumber: expense.documentNumber,
         documentDate: expense.documentDate,
+        documentUrl: String(expense.raw?.urlDocumento ?? expense.raw?.urlDocument ?? ""),
         amount: expense.netValue,
         median: categoryMedian,
         mad,
@@ -331,6 +336,7 @@ const alerts = [...consolidated.values()].map((group) => {
       consolidationVersion: 2,
       consolidated: true,
       sourceModule: "ceap",
+      deputyId: group.deputyId,
       analyzedYear,
       ruleType: group.ruleType,
       category: group.category,
