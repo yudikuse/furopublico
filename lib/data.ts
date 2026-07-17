@@ -16,7 +16,10 @@ function normalizeInvestigation(row: Record<string, unknown>): Investigation {
     confidence: row.confidence as Investigation["confidence"],
     state: row.state ? String(row.state) : undefined,
     municipality: row.municipality ? String(row.municipality) : undefined,
-    involvedAmount: row.involved_amount === null || row.involved_amount === undefined ? undefined : Number(row.involved_amount),
+    involvedAmount:
+      row.involved_amount === null || row.involved_amount === undefined
+        ? undefined
+        : Number(row.involved_amount),
     publishedAt: row.published_at ? String(row.published_at) : undefined,
     updatedAt: String(row.updated_at),
     isFeatured: Boolean(row.is_featured),
@@ -32,30 +35,57 @@ function normalizeInvestigation(row: Record<string, unknown>): Investigation {
   };
 }
 
-export const getPublishedInvestigations = cache(async (): Promise<Investigation[]> => {
-  if (!hasSupabaseConfig()) return demoInvestigations;
+function normalizeAlert(row: Record<string, unknown>): InvestigationAlert {
+  return {
+    id: String(row.id),
+    title: String(row.title),
+    rule: String(row.rule),
+    severity: row.severity as InvestigationAlert["severity"],
+    status: row.status as InvestigationAlert["status"],
+    detectedAt: String(row.detected_at),
+    deputyName: row.deputy_name ? String(row.deputy_name) : undefined,
+    supplierName: row.supplier_name ? String(row.supplier_name) : undefined,
+    amount:
+      row.amount === null || row.amount === undefined
+        ? undefined
+        : Number(row.amount),
+    evidence: (row.evidence as Record<string, unknown> | null) ?? {},
+    reviewerNotes: row.reviewer_notes ? String(row.reviewer_notes) : undefined,
+    investigationId: row.investigation_id ? String(row.investigation_id) : undefined
+  };
+}
 
-  try {
-    const supabase = createSupabaseAdmin();
-    const { data, error } = await supabase
-      .from("investigations")
-      .select("*")
-      .in("status", ["publicado", "atualizado", "aguardando_resposta"])
-      .order("is_featured", { ascending: false })
-      .order("published_at", { ascending: false });
+export const getPublishedInvestigations = cache(
+  async (): Promise<Investigation[]> => {
+    if (!hasSupabaseConfig()) return demoInvestigations;
 
-    if (error) throw error;
-    return (data ?? []).map(normalizeInvestigation);
-  } catch (error) {
-    console.error("Falha ao consultar investigações; usando demonstração.", error);
-    return demoInvestigations;
+    try {
+      const supabase = createSupabaseAdmin();
+      const { data, error } = await supabase
+        .from("investigations")
+        .select("*")
+        .in("status", ["publicado", "atualizado", "aguardando_resposta"])
+        .order("is_featured", { ascending: false })
+        .order("published_at", { ascending: false });
+
+      if (error) throw error;
+      return (data ?? []).map(normalizeInvestigation);
+    } catch (error) {
+      console.error(
+        "Falha ao consultar investigações; usando demonstração.",
+        error
+      );
+      return demoInvestigations;
+    }
   }
-});
+);
 
-export const getInvestigationBySlug = cache(async (slug: string): Promise<Investigation | null> => {
-  const investigations = await getPublishedInvestigations();
-  return investigations.find((item) => item.slug === slug) ?? null;
-});
+export const getInvestigationBySlug = cache(
+  async (slug: string): Promise<Investigation | null> => {
+    const investigations = await getPublishedInvestigations();
+    return investigations.find((item) => item.slug === slug) ?? null;
+  }
+);
 
 export const getAlerts = cache(async (): Promise<InvestigationAlert[]> => {
   if (!hasSupabaseConfig()) return demoAlerts;
@@ -66,23 +96,35 @@ export const getAlerts = cache(async (): Promise<InvestigationAlert[]> => {
       .from("alerts")
       .select("*")
       .order("detected_at", { ascending: false })
-      .limit(100);
+      .limit(500);
 
     if (error) throw error;
-    return (data ?? []).map((row) => ({
-      id: String(row.id),
-      title: String(row.title),
-      rule: String(row.rule),
-      severity: row.severity as InvestigationAlert["severity"],
-      status: row.status as InvestigationAlert["status"],
-      detectedAt: String(row.detected_at),
-      deputyName: row.deputy_name ? String(row.deputy_name) : undefined,
-      supplierName: row.supplier_name ? String(row.supplier_name) : undefined,
-      amount: row.amount === null || row.amount === undefined ? undefined : Number(row.amount),
-      evidence: (row.evidence as Record<string, unknown> | null) ?? {}
-    }));
+    return (data ?? []).map(normalizeAlert);
   } catch (error) {
     console.error("Falha ao consultar alertas; usando demonstração.", error);
     return demoAlerts;
   }
 });
+
+export const getAlertById = cache(
+  async (id: string): Promise<InvestigationAlert | null> => {
+    if (!hasSupabaseConfig()) {
+      return demoAlerts.find((item) => item.id === id) ?? null;
+    }
+
+    try {
+      const supabase = createSupabaseAdmin();
+      const { data, error } = await supabase
+        .from("alerts")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data ? normalizeAlert(data) : null;
+    } catch (error) {
+      console.error("Falha ao consultar alerta.", error);
+      return null;
+    }
+  }
+);

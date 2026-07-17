@@ -23,7 +23,12 @@ export type EvidenceSource = {
   title: string;
   publisher: string;
   url: string;
-  kind: "dado_oficial" | "documento" | "declaracao" | "resposta" | "verificacao_local";
+  kind:
+    | "dado_oficial"
+    | "documento"
+    | "declaracao"
+    | "resposta"
+    | "verificacao_local";
   accessedAt?: string;
   documentDate?: string;
   note?: string;
@@ -93,4 +98,6 @@ export type InvestigationAlert = {
   supplierName?: string;
   amount?: number;
   evidence: Record<string, unknown>;
+  reviewerNotes?: string;
+  investigationId?: string;
 };
