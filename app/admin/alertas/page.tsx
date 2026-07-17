@@ -13,9 +13,9 @@ export default async function AlertsPage() {
           <p className="eyebrow">FILA PRIVADA</p>
           <h1>Alertas para revisão</h1>
           <p>
-            Cada linha representa um alerta consolidado por parlamentar,
-            regra, categoria e período. As ocorrências individuais permanecem
-            disponíveis no detalhe técnico.
+            Cada registro representa um parlamentar e um período.
+            Tipos de sinal, categorias, fornecedores e documentos são
+            organizados dentro da página do gabinete.
           </p>
         </div>
 

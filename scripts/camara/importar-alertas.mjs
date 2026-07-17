@@ -97,7 +97,10 @@ const rows = [...uniqueAlerts.entries()].map(([externalId, alert]) => {
 const legacyTitles = [
   "Possível documento repetido no mesmo gabinete",
   "Fornecedor concentra a maior parte de uma categoria de despesas",
-  "Documento com valor muito acima do padrão da categoria"
+  "Documento com valor muito acima do padrão da categoria",
+  "Possíveis documentos repetidos no gabinete",
+  "Concentração de fornecedores em categoria de despesas",
+  "Documentos com valor muito acima do padrão da categoria"
 ];
 
 for (const title of legacyTitles) {
@@ -127,4 +130,28 @@ for (let index = 0; index < rows.length; index += 200) {
   );
 }
 
-console.log("Importação concluída com alertas consolidados e histórico editorial preservado.");
+// Remove os alertas consolidados por regra da versão 2 ainda não trabalhados.
+const { data: versionTwoRows, error: versionTwoError } = await supabase
+  .from("alerts")
+  .select("id,evidence")
+  .in("status", ["novo", "em_revisao"])
+  .is("investigation_id", null);
+
+if (versionTwoError) throw versionTwoError;
+
+const versionTwoIds = (versionTwoRows ?? [])
+  .filter((row) => Number(row.evidence?.consolidationVersion ?? 0) === 2)
+  .map((row) => row.id);
+
+for (let index = 0; index < versionTwoIds.length; index += 200) {
+  const batch = versionTwoIds.slice(index, index + 200);
+  const { error } = await supabase.from("alerts").delete().in("id", batch);
+  if (error) throw error;
+}
+
+console.log(
+  `Alertas v2 pendentes removidos: ${versionTwoIds.length}`
+);
+console.log(
+  "Importação concluída com um alerta por parlamentar e histórico editorial preservado."
+);

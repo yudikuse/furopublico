@@ -1,0 +1,436 @@
+/* Consolidação principal por parlamentar */
+
+.parliamentary-hero h1 {
+  text-transform: none;
+}
+
+.parliamentary-alert {
+  margin-top: 20px;
+}
+
+.parliamentary-alert-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 30px;
+  align-items: flex-start;
+}
+
+.parliamentary-alert-heading h2 {
+  margin: 0 0 8px;
+  font-size: clamp(32px, 4vw, 52px);
+}
+
+.parliamentary-alert-heading p {
+  max-width: 780px;
+  color: var(--muted);
+}
+
+.parliamentary-priority {
+  flex: 0 0 auto;
+  padding: 16px;
+  min-width: 150px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  text-align: right;
+}
+
+.parliamentary-priority span,
+.parliamentary-priority strong,
+.parliamentary-priority small {
+  display: block;
+}
+
+.parliamentary-priority span,
+.parliamentary-priority small {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+
+.parliamentary-priority strong {
+  margin: 6px 0;
+  color: var(--red);
+  font-size: 24px;
+  text-transform: uppercase;
+}
+
+.parliamentary-metrics {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin: 22px 0;
+}
+
+.parliamentary-metrics article {
+  padding: 16px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+}
+
+.parliamentary-metrics span {
+  display: block;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.parliamentary-metrics strong {
+  display: block;
+  margin-top: 8px;
+  font: 500 21px/1.2 Georgia, serif;
+  overflow-wrap: anywhere;
+}
+
+.parliamentary-tabs {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.parliamentary-tabs button {
+  padding: 13px 17px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.parliamentary-tabs button.active {
+  color: var(--red);
+  border-bottom-color: var(--red);
+}
+
+.parliamentary-overview {
+  display: grid;
+  gap: 26px;
+}
+
+.parliamentary-rule-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.parliamentary-rule-grid button,
+.parliamentary-category-list button,
+.parliamentary-top-suppliers button {
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  text-align: left;
+  cursor: pointer;
+}
+
+.parliamentary-rule-grid button {
+  padding: 18px;
+}
+
+.parliamentary-rule-grid button:hover,
+.parliamentary-category-list button:hover,
+.parliamentary-top-suppliers button:hover {
+  border-color: var(--red);
+}
+
+.parliamentary-rule-grid span,
+.parliamentary-rule-grid strong,
+.parliamentary-rule-grid small {
+  display: block;
+}
+
+.parliamentary-rule-grid span {
+  color: var(--red);
+  font-weight: 900;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+.parliamentary-rule-grid strong {
+  margin: 9px 0;
+  font: 500 24px/1.2 Georgia, serif;
+}
+
+.parliamentary-rule-grid small {
+  color: var(--muted);
+}
+
+.parliamentary-rule-grid p {
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.parliamentary-category-list,
+.parliamentary-top-suppliers {
+  display: grid;
+}
+
+.parliamentary-category-list button,
+.parliamentary-top-suppliers button {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px;
+  border-bottom: 0;
+}
+
+.parliamentary-category-list button:last-child,
+.parliamentary-top-suppliers button:last-child {
+  border-bottom: 1px solid var(--line);
+}
+
+.parliamentary-category-list strong,
+.parliamentary-category-list span,
+.parliamentary-top-suppliers strong,
+.parliamentary-top-suppliers span,
+.parliamentary-top-suppliers b {
+  display: block;
+}
+
+.parliamentary-category-list span,
+.parliamentary-top-suppliers span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.parliamentary-top-suppliers button > div:last-child {
+  text-align: right;
+}
+
+.parliamentary-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(250px, 2fr) repeat(4, minmax(140px, 1fr));
+  gap: 10px;
+  padding: 16px;
+  margin-bottom: 18px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+}
+
+.parliamentary-filter-bar label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.parliamentary-filter-bar input,
+.parliamentary-filter-bar select {
+  min-width: 0;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+
+.parliamentary-check {
+  display: flex !important;
+  grid-column: span 2;
+  align-items: center;
+  flex-direction: row !important;
+}
+
+.parliamentary-check input {
+  width: auto;
+}
+
+.parliamentary-results {
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.parliamentary-supplier-list {
+  display: grid;
+  gap: 10px;
+}
+
+.parliamentary-supplier-list > article {
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.supplier-summary-row {
+  display: grid;
+  grid-template-columns: minmax(260px, 2fr) repeat(4, minmax(110px, 1fr)) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 16px;
+}
+
+.supplier-summary-row span {
+  display: block;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.supplier-summary-row strong {
+  display: block;
+  margin-top: 5px;
+}
+
+.supplier-identity small,
+.supplier-identity p {
+  display: block;
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.supplier-expanded {
+  padding: 18px;
+  background: var(--paper);
+  border-top: 1px solid var(--line);
+}
+
+.supplier-action-row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 14px;
+}
+
+.supplier-action-row span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.parliamentary-dossier-note {
+  padding: 14px;
+  margin-bottom: 16px;
+  background: #eef4ff;
+  border-left: 4px solid var(--blue);
+}
+
+.parliamentary-dossier-note p {
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.legacy-enrichment-warning {
+  margin-top: 20px;
+  border-left: 5px solid var(--amber);
+}
+
+.parliamentary-queue-list {
+  display: grid;
+}
+
+.parliamentary-queue-card {
+  display: grid;
+  grid-template-columns: minmax(260px, 2fr) repeat(4, minmax(110px, 1fr)) minmax(130px, 1fr);
+  gap: 18px;
+  align-items: center;
+  padding: 17px 12px;
+  color: var(--ink);
+  border-top: 1px solid var(--line);
+}
+
+.parliamentary-queue-card:hover {
+  background: var(--paper);
+}
+
+.parliamentary-queue-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.parliamentary-queue-card strong {
+  display: block;
+  margin-top: 5px;
+  font: 500 19px/1.2 Georgia, serif;
+}
+
+.parliamentary-queue-identity h3 {
+  margin: 5px 0;
+}
+
+.parliamentary-queue-identity small,
+.parliamentary-queue-priority small,
+.parliamentary-queue-priority time {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.parliamentary-queue-priority {
+  text-align: right;
+}
+
+.parliamentary-queue-filters {
+  grid-template-columns: minmax(220px, 2fr) repeat(6, minmax(120px, 1fr));
+}
+
+.responsive-table {
+  overflow-x: auto;
+}
+
+.admin-table small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+@media (max-width: 1200px) {
+  .parliamentary-metrics {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .parliamentary-filter-bar,
+  .parliamentary-queue-filters {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .supplier-summary-row,
+  .parliamentary-queue-card {
+    grid-template-columns: minmax(240px, 2fr) repeat(2, 1fr);
+  }
+
+  .parliamentary-queue-priority {
+    text-align: left;
+  }
+}
+
+@media (max-width: 760px) {
+  .parliamentary-alert-heading {
+    flex-direction: column;
+  }
+
+  .parliamentary-priority {
+    text-align: left;
+  }
+
+  .parliamentary-metrics,
+  .parliamentary-rule-grid,
+  .parliamentary-filter-bar,
+  .parliamentary-queue-filters,
+  .supplier-summary-row,
+  .parliamentary-queue-card {
+    grid-template-columns: 1fr;
+  }
+
+  .parliamentary-check {
+    grid-column: auto;
+  }
+
+  .supplier-action-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

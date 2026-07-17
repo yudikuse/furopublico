@@ -262,33 +262,43 @@ for (const [category, group] of byCategory) {
 
 const definitions = {
   "documento-repetido": {
-    title: "Possíveis documentos repetidos no gabinete",
-    rule: "Ocorrências com mesmo fornecedor, número, data e valor foram consolidadas por parlamentar e período"
+    title: "Possíveis documentos repetidos",
+    shortLabel: "Documentos repetidos",
+    rule:
+      "Mesmo fornecedor, número, data e valor aparece mais de uma vez"
   },
   "concentracao-fornecedor": {
-    title: "Concentração de fornecedores em categoria de despesas",
-    rule: "Fornecedores com participação igual ou superior a 50% e valor acumulado superior a R$ 100 mil"
+    title: "Concentração de fornecedor",
+    shortLabel: "Concentração",
+    rule:
+      "Fornecedor representa ao menos 50% da categoria e acumula mais de R$ 100 mil"
   },
   "valor-extremo": {
-    title: "Documentos com valor muito acima do padrão da categoria",
-    rule: "Documentos acima do limite robusto foram consolidados por parlamentar, categoria e período"
+    title: "Documento com valor extremo",
+    shortLabel: "Valor extremo",
+    rule:
+      "Documento ultrapassa o limite robusto calculado para a categoria"
   }
 };
 
-const consolidated = new Map();
+// ============================================================
+// CONSOLIDAÇÃO EDITORIAL: UM ALERTA POR PARLAMENTAR E ANO
+// ============================================================
+
+const byDeputy = new Map();
 
 for (const signal of signals) {
-  const categoryKey = signal.category ?? "todas";
-  const key = [signal.deputyId, signal.ruleType, categoryKey, analyzedYear].join("|");
-  const current = consolidated.get(key) ?? {
-    ruleType: signal.ruleType,
-    category: signal.category,
+  const key = `${signal.deputyId}|${analyzedYear}`;
+  const current = byDeputy.get(key) ?? {
     deputyId: signal.deputyId,
     deputyName: signal.deputyName,
+    analyzedYear,
     amount: 0,
     largestOccurrence: 0,
     severity: "media",
     suppliers: new Map(),
+    categories: new Map(),
+    ruleGroups: new Map(),
     occurrences: []
   };
 
@@ -297,53 +307,148 @@ for (const signal of signals) {
     current.largestOccurrence,
     signal.individualValue ?? signal.amount
   );
+
   if (signal.severity === "alta") current.severity = "alta";
-  current.suppliers.set(
-    signal.supplierTaxId || signal.supplierName,
-    { name: signal.supplierName, taxId: signal.supplierTaxId }
+
+  const supplierKey =
+    signal.supplierTaxId || signal.supplierName || "nao-identificado";
+
+  const supplier = current.suppliers.get(supplierKey) ?? {
+    name: signal.supplierName,
+    taxId: signal.supplierTaxId,
+    amount: 0,
+    largestOccurrence: 0,
+    occurrenceCount: 0,
+    documentCount: 0,
+    categories: new Set(),
+    ruleTypes: new Set()
+  };
+
+  supplier.amount += signal.amount;
+  supplier.largestOccurrence = Math.max(
+    supplier.largestOccurrence,
+    signal.individualValue ?? signal.amount
   );
-  current.occurrences.push(signal.occurrence);
-  consolidated.set(key, current);
+  supplier.occurrenceCount += 1;
+  supplier.documentCount += Number(
+    signal.occurrence?.documentCount ??
+      signal.occurrence?.records?.length ??
+      (signal.occurrence?.record || signal.occurrence?.documentNumber ? 1 : 0)
+  );
+  if (signal.category) supplier.categories.add(signal.category);
+  supplier.ruleTypes.add(signal.ruleType);
+  current.suppliers.set(supplierKey, supplier);
+
+  const categoryName = signal.category || "Sem categoria específica";
+  const category = current.categories.get(categoryName) ?? {
+    name: categoryName,
+    amount: 0,
+    occurrenceCount: 0,
+    supplierKeys: new Set(),
+    ruleTypes: new Set()
+  };
+  category.amount += signal.amount;
+  category.occurrenceCount += 1;
+  category.supplierKeys.add(supplierKey);
+  category.ruleTypes.add(signal.ruleType);
+  current.categories.set(categoryName, category);
+
+  const rule = current.ruleGroups.get(signal.ruleType) ?? {
+    ruleType: signal.ruleType,
+    title: definitions[signal.ruleType].title,
+    shortLabel: definitions[signal.ruleType].shortLabel,
+    rule: definitions[signal.ruleType].rule,
+    amount: 0,
+    largestOccurrence: 0,
+    occurrenceCount: 0,
+    supplierKeys: new Set(),
+    categories: new Set()
+  };
+  rule.amount += signal.amount;
+  rule.largestOccurrence = Math.max(
+    rule.largestOccurrence,
+    signal.individualValue ?? signal.amount
+  );
+  rule.occurrenceCount += 1;
+  rule.supplierKeys.add(supplierKey);
+  if (signal.category) rule.categories.add(signal.category);
+  current.ruleGroups.set(signal.ruleType, rule);
+
+  current.occurrences.push({
+    ...signal.occurrence,
+    ruleType: signal.ruleType,
+    ruleLabel: definitions[signal.ruleType].shortLabel,
+    severity: signal.severity
+  });
+
+  byDeputy.set(key, current);
 }
 
-const alerts = [...consolidated.values()].map((group) => {
-  const definition = definitions[group.ruleType];
-  const suppliers = [...group.suppliers.values()];
-  const supplierName =
-    suppliers.length === 1
-      ? suppliers[0].name
-      : `${suppliers.length} fornecedores`;
+const alerts = [...byDeputy.values()].map((group) => {
+  const suppliers = [...group.suppliers.values()]
+    .map((supplier) => ({
+      ...supplier,
+      categories: [...supplier.categories],
+      ruleTypes: [...supplier.ruleTypes]
+    }))
+    .sort((a, b) => b.amount - a.amount);
+
+  const categories = [...group.categories.values()]
+    .map((category) => ({
+      ...category,
+      supplierCount: category.supplierKeys.size,
+      supplierKeys: undefined,
+      ruleTypes: [...category.ruleTypes]
+    }))
+    .sort((a, b) => b.amount - a.amount);
+
+  const ruleGroups = [...group.ruleGroups.values()]
+    .map((rule) => ({
+      ...rule,
+      supplierCount: rule.supplierKeys.size,
+      supplierKeys: undefined,
+      categories: [...rule.categories]
+    }))
+    .sort((a, b) => b.amount - a.amount);
 
   const id = stableId([
-    "alerta-consolidado-v2",
+    "alerta-parlamentar-v3",
     group.deputyId,
-    group.ruleType,
-    group.category ?? "todas",
     analyzedYear
   ]);
 
+  const highCount = group.occurrences.filter(
+    (item) => item.severity === "alta"
+  ).length;
+
   return {
     id,
-    title: definition.title,
-    rule: definition.rule,
+    title: `Sinais de despesas no gabinete de ${group.deputyName}`,
+    rule:
+      "Sinais técnicos da CEAP consolidados por parlamentar e período; fornecedores e documentos permanecem disponíveis para triagem",
     severity: group.severity,
     status: "novo",
     detectedAt: new Date().toISOString(),
     deputyName: group.deputyName,
-    supplierName,
+    supplierName: `${suppliers.length} fornecedor(es)`,
     amount: group.amount,
     evidence: {
-      consolidationVersion: 2,
+      consolidationVersion: 3,
       consolidated: true,
+      consolidationLevel: "deputy",
       sourceModule: "ceap",
       deputyId: group.deputyId,
       analyzedYear,
-      ruleType: group.ruleType,
-      category: group.category,
+      ruleType: "parliamentary-overview",
+      ruleCount: ruleGroups.length,
       occurrenceCount: group.occurrences.length,
       supplierCount: suppliers.length,
+      categoryCount: categories.length,
+      highPriorityCount: highCount,
       largestOccurrence: group.largestOccurrence,
       suppliers,
+      categories,
+      ruleGroups,
       occurrences: group.occurrences
     }
   };
@@ -369,7 +474,8 @@ await writeJson(output, {
     analyzedYear,
     rawSignals: signals.length,
     total: alerts.length,
-    consolidationVersion: 2,
+    consolidationVersion: 3,
+    consolidationLevel: "deputy",
     disclaimer:
       "Alertas estatísticos são pistas e não comprovam irregularidade."
   },
@@ -377,5 +483,5 @@ await writeJson(output, {
 });
 
 console.log(`Sinais técnicos encontrados: ${signals.length}`);
-console.log(`Alertas consolidados: ${alerts.length}`);
+console.log(`Parlamentares com sinais: ${alerts.length}`);
 console.log(`Arquivo gerado: ${output}`);

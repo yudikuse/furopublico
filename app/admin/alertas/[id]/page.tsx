@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminAlertForm } from "@/components/admin-alert-form";
-import { AdminAlertOccurrences } from "@/components/admin-alert-occurrences";
+import { AdminParliamentaryAlert } from "@/components/admin-parliamentary-alert";
 import { AdminEnrichmentPanel } from "@/components/admin-enrichment-panel";
 import { AdminEntityNetwork } from "@/components/admin-entity-network";
 import { getAlertById } from "@/lib/data";
-import { formatCurrency, formatDate } from "@/lib/format";
+
 
 export const dynamic = "force-dynamic";
 
@@ -52,51 +52,35 @@ export default async function AlertDetailPage({ params }: PageProps) {
           ← Voltar para a fila
         </Link>
 
-        <div className="admin-alert-hero">
+        <div className="admin-alert-hero parliamentary-hero">
           <div>
-            <p className="eyebrow">APURAÇÃO PRIVADA</p>
-            <h1>{alert.title}</h1>
-            <p>{alert.rule}</p>
+            <p className="eyebrow">APURAÇÃO PRIVADA · PARLAMENTAR</p>
+            <h1>{alert.deputyName ?? alert.title}</h1>
+            <p>
+              Visão consolidada dos sinais técnicos encontrados nas
+              despesas da CEAP. Fornecedores e documentos são
+              desdobramentos desta apuração.
+            </p>
           </div>
           <b className={`severity severity-${alert.severity}`}>
             {alert.severity}
           </b>
         </div>
 
-        <div className="admin-alert-metrics">
-          <article>
-            <span>Parlamentar</span>
-            <strong>{alert.deputyName ?? "Não identificado"}</strong>
-          </article>
-          <article>
-            <span>Fornecedores</span>
-            <strong>{alert.supplierName ?? "Não identificado"}</strong>
-          </article>
-          <article>
-            <span>Valor relacionado</span>
-            <strong>{formatCurrency(alert.amount)}</strong>
-          </article>
-          <article>
-            <span>Detectado</span>
-            <strong>{formatDate(alert.detectedAt)}</strong>
-          </article>
-        </div>
-
-        <AdminAlertOccurrences alert={alert} />
+        <AdminParliamentaryAlert alert={alert} />
 
         {alert.enrichment ? (
-          <AdminEnrichmentPanel enrichment={alert.enrichment} />
-        ) : (
-          <div className="admin-panel enrichment-empty">
-            <p className="eyebrow">PRÓXIMO PASSO</p>
-            <h2>Transforme o alerta em dossiê</h2>
+          <div className="admin-panel legacy-enrichment-warning">
+            <p className="eyebrow">DADO ANTERIOR</p>
+            <h2>Dossiê empresarial antigo preservado</h2>
             <p>
-              Use o botão <strong>Gerar dossiê automático</strong> para
-              buscar o histórico do fornecedor, somar pagamentos,
-              comparar a categoria e consultar o cadastro empresarial.
+              Este conteúdo foi gerado antes da consolidação por
+              parlamentar e pode representar somente um fornecedor.
+              Ele não será usado como resumo geral do gabinete.
             </p>
+            <AdminEnrichmentPanel enrichment={alert.enrichment} />
           </div>
-        )}
+        ) : null}
 
         <AdminEntityNetwork
           alertId={alert.id}

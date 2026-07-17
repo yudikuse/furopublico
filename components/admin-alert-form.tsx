@@ -79,30 +79,41 @@ export function AdminAlertForm({ alert }: Props) {
   }
 
   const busy = pendingAction !== null;
-  const supplierCount = Number(alert.evidence.supplierCount ?? 1);
-  const broadConsolidatedAlert =
-    alert.evidence.consolidated === true && supplierCount > 1;
+  const parliamentaryAlert =
+    alert.evidence.consolidationLevel === "deputy";
 
   return (
     <form ref={formRef} className="editorial-form admin-alert-form">
-      <button
-        type="button"
-        className="button button-enrichment"
-        disabled={busy || broadConsolidatedAlert}
-        onClick={() => run("enrich")}
-      >
-        {pendingAction === "enrich"
-          ? "Cruzando dados…"
-          : alert.enrichment
-            ? "Atualizar dossiê automático"
-            : "Gerar dossiê automático"}
-      </button>
+      {parliamentaryAlert ? (
+        <div className="parliamentary-dossier-note">
+          <strong>Dossiê parlamentar consolidado</strong>
+          <p>
+            Os sinais, categorias, fornecedores e documentos já estão
+            reunidos acima. O enriquecimento empresarial será executado
+            somente para fornecedores escolhidos durante a apuração.
+          </p>
+        </div>
+      ) : (
+        <>
+          <button
+            type="button"
+            className="button button-enrichment"
+            disabled={busy}
+            onClick={() => run("enrich")}
+          >
+            {pendingAction === "enrich"
+              ? "Cruzando dados…"
+              : alert.enrichment
+                ? "Atualizar dossiê automático"
+                : "Gerar dossiê automático"}
+          </button>
 
-      <p className="form-helper">
-        {broadConsolidatedAlert
-          ? "Este alerta reúne vários fornecedores. Abra as ocorrências e converta o conjunto em investigação; o dossiê empresarial individual será feito a partir da entidade escolhida."
-          : "Consulta o histórico da Câmara na 57ª Legislatura, soma pagamentos, compara fornecedores da categoria e busca o cadastro do CNPJ."}
-      </p>
+          <p className="form-helper">
+            Consulta o histórico da Câmara, compara a categoria e
+            busca o cadastro do fornecedor.
+          </p>
+        </>
+      )}
 
       {alert.investigationId ? (
         <label>

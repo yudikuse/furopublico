@@ -5,6 +5,7 @@ import "./globals.css";
 import "./entity-network.css";
 import "./investigation-workspace.css";
 import "./alerts-consolidated.css";
+import "./parliamentary-alert.css";
 
 const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
