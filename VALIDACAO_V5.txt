@@ -1,0 +1,30 @@
+VALIDAÇÃO SINTÉTICA DA CONSOLIDAÇÃO V5
+
+Linhas recebidas: 20
+Registros CEAP normalizados: 20
+Registros CEAP únicos: 19
+Repetições exatas removidas: 1
+Documentos oficiais/fallback agrupados: 18
+Sinais técnicos encontrados: 3
+Parlamentares com sinais: 1
+
+CASOS TESTADOS
+
+1. GRAFICA FRANCO MARTINS LTDA
+   Total CEAP: R$ 213.580,00
+   Documentos oficiais: 6
+   Documento de R$ 43.590,00 com duas linhas associadas: permaneceu um documento.
+   Falso sinal de documento repetido: não criado.
+
+2. AUTORIO LOCADORA DE VEICULOS LTDA
+   Total CEAP: R$ 125.000,00
+   Documentos oficiais: 10
+   Valor de face de cada documento: R$ 12.500,00
+
+3. REPETIÇÃO EXATA DA COLETA
+   Uma linha idêntica foi descartada antes dos cálculos.
+
+4. DUPLICIDADE DOCUMENTAL VÁLIDA COMO CANDIDATO
+   Dois identificadores oficiais diferentes, com fornecedor, número, data e valor de face iguais, geraram um único sinal de conferência.
+
+Todas as asserções passaram.

@@ -12,8 +12,8 @@
     "typecheck": "tsc --noEmit",
     "camara:deputados": "node scripts/camara/sync-deputados.mjs",
     "camara:despesas": "node scripts/camara/sync-despesas.mjs",
-    "camara:alertas": "node scripts/camara/detectar-alertas.mjs",
-    "camara:importar-alertas": "node scripts/camara/importar-alertas.mjs"
+    "camara:alertas": "node scripts/camara/detectar-alertas-v5.mjs",
+    "camara:importar-alertas": "node scripts/camara/importar-alertas-v5.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.110.7",

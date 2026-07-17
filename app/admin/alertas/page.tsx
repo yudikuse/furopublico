@@ -1,4 +1,4 @@
-import { AdminAlertsTable } from "@/components/admin-alerts-table";
+import { AdminParliamentaryQueue } from "@/components/admin-parliamentary-queue";
 import { getAlerts } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
@@ -11,15 +11,15 @@ export default async function AlertsPage() {
       <div className="container">
         <div className="page-header alerts-page-header">
           <p className="eyebrow">FILA PRIVADA</p>
-          <h1>Alertas para revisão</h1>
+          <h1>Casos para revisão</h1>
           <p>
-            Cada registro representa um parlamentar e um período.
-            Tipos de sinal, categorias, fornecedores e documentos são
-            organizados dentro da página do gabinete.
+            Cada registro representa um parlamentar e um período. O valor
+            CEAP é calculado por lançamentos únicos agrupados nos documentos
+            oficiais; sinais técnicos são contados separadamente.
           </p>
         </div>
 
-        <AdminAlertsTable alerts={alerts} />
+        <AdminParliamentaryQueue alerts={alerts} />
       </div>
     </section>
   );

@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminAlertForm } from "@/components/admin-alert-form";
-import { AdminParliamentaryAlert } from "@/components/admin-parliamentary-alert";
+import { AdminParliamentaryCaseV5 } from "@/components/admin-parliamentary-case-v5";
 import { AdminEnrichmentPanel } from "@/components/admin-enrichment-panel";
 import { AdminEntityNetwork } from "@/components/admin-entity-network";
 import { getAlertById } from "@/lib/data";
-
 
 export const dynamic = "force-dynamic";
 
@@ -15,26 +14,36 @@ type PageProps = {
 
 function collectDocumentLinks(evidence: Record<string, unknown>) {
   const urls = new Set<string>();
+  const documents = Array.isArray(evidence.documents)
+    ? evidence.documents
+    : [];
 
-  function walk(value: unknown) {
-    if (!value) return;
-    if (typeof value === "string") {
-      if (/^https?:\/\//i.test(value)) urls.add(value);
-      return;
-    }
-    if (Array.isArray(value)) {
-      value.forEach(walk);
-      return;
-    }
-    if (typeof value === "object") {
-      Object.values(value as Record<string, unknown>).forEach(walk);
+  for (const value of documents) {
+    if (!value || typeof value !== "object") continue;
+    const document = value as Record<string, unknown>;
+    const direct = String(document.documentUrl ?? "").trim();
+
+    if (/^https?:\/\//i.test(direct)) urls.add(direct);
+
+    const records = Array.isArray(document.records)
+      ? document.records
+      : [];
+
+    for (const recordValue of records) {
+      if (!recordValue || typeof recordValue !== "object") continue;
+      const record = recordValue as Record<string, unknown>;
+      const candidate = String(
+        record.urlDocumento ??
+          record.urlDocument ??
+          record.documentUrl ??
+          record.url ??
+          ""
+      ).trim();
+
+      if (/^https?:\/\//i.test(candidate)) urls.add(candidate);
     }
   }
 
-  const evidenceWithoutGeneratedData = { ...evidence };
-  delete evidenceWithoutGeneratedData.enrichment;
-  delete evidenceWithoutGeneratedData.entityNetwork;
-  walk(evidenceWithoutGeneratedData);
   return [...urls];
 }
 
@@ -58,8 +67,8 @@ export default async function AlertDetailPage({ params }: PageProps) {
             <h1>{alert.deputyName ?? alert.title}</h1>
             <p>
               Visão consolidada dos sinais técnicos encontrados nas
-              despesas da CEAP. Fornecedores e documentos são
-              desdobramentos desta apuração.
+              despesas da CEAP. Documentos oficiais e lançamentos financeiros
+              permanecem separados para conferência.
             </p>
           </div>
           <b className={`severity severity-${alert.severity}`}>
@@ -67,7 +76,7 @@ export default async function AlertDetailPage({ params }: PageProps) {
           </b>
         </div>
 
-        <AdminParliamentaryAlert alert={alert} />
+        <AdminParliamentaryCaseV5 alert={alert} />
 
         {alert.enrichment ? (
           <div className="admin-panel legacy-enrichment-warning">
@@ -91,36 +100,20 @@ export default async function AlertDetailPage({ params }: PageProps) {
         <div className="admin-alert-layout">
           <div className="admin-panel">
             <div className="panel-heading">
-              <h2>Documento e evidência original</h2>
+              <h2>Documentos e evidência original</h2>
             </div>
 
             <p className="admin-warning">
-              O alerta estatístico não comprova irregularidade. Confirme o
-              período, a natureza da despesa, possíveis estornos,
-              justificativas e o conteúdo dos documentos originais.
+              O sinal estatístico não comprova irregularidade. Confirme o
+              documento, os lançamentos associados, glosas, parcelas,
+              restituições, justificativas e contraditório.
             </p>
 
-            {links.length ? (
-              <div className="document-links">
-                <h3>Links encontrados nos registros</h3>
-                {links.map((url) => (
-                  <a
-                    key={url}
-                    href={url}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Abrir documento ou fonte ↗
-                    <small>{url}</small>
-                  </a>
-                ))}
-              </div>
-            ) : (
-              <p className="muted">
-                Nenhum endereço eletrônico foi encontrado
-                automaticamente.
-              </p>
-            )}
+            <p>
+              Os PDFs são abertos somente na aba <strong>Documentos</strong>,
+              onde cada comprovante aparece com o valor de face e o valor
+              líquido debitado da CEAP em colunas separadas.
+            </p>
 
             <details className="evidence-json">
               <summary>Ver todos os dados brutos</summary>
@@ -147,7 +140,7 @@ export default async function AlertDetailPage({ params }: PageProps) {
               <div className="admin-panel linked-investigation">
                 <h2>Investigação criada</h2>
                 <p>
-                  Este alerta já foi convertido e está relacionado ao
+                  Este caso já foi convertido e está relacionado ao
                   registro:
                 </p>
                 <code>{alert.investigationId}</code>
