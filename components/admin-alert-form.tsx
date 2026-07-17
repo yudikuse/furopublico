@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { InvestigationAlert } from "@/lib/types";
 
@@ -99,15 +100,23 @@ export function AdminAlertForm({ alert }: Props) {
         compara fornecedores da categoria e busca o cadastro do CNPJ.
       </p>
 
-      <label>
-        Status editorial
-        <select name="status" defaultValue={alert.status}>
-          <option value="novo">Novo</option>
-          <option value="em_revisao">Em revisão</option>
-          <option value="descartado">Descartado</option>
-          <option value="convertido">Convertido</option>
-        </select>
-      </label>
+      {alert.investigationId ? (
+        <label>
+          Status editorial
+          <input value="Convertido em investigação" disabled />
+          <input type="hidden" name="status" value="convertido" />
+        </label>
+      ) : (
+        <label>
+          Status editorial
+          <select name="status" defaultValue={alert.status}>
+            <option value="novo">Novo</option>
+            <option value="em_revisao">Em revisão</option>
+            <option value="descartado">Descartado</option>
+            <option value="convertido">Convertido</option>
+          </select>
+        </label>
+      )}
 
       <label>
         Notas privadas da apuração
@@ -133,16 +142,25 @@ export function AdminAlertForm({ alert }: Props) {
           {pendingAction === "save" ? "Salvando…" : "Salvar revisão"}
         </button>
 
-        <button
-          type="button"
-          className="button button-primary"
-          disabled={busy || alert.status === "convertido"}
-          onClick={() => run("convert")}
-        >
-          {pendingAction === "convert"
-            ? "Convertendo…"
-            : "Converter em investigação"}
-        </button>
+        {alert.investigationId ? (
+          <Link
+            className="button button-primary"
+            href={`/admin/investigacoes/${alert.investigationId}`}
+          >
+            Abrir investigação
+          </Link>
+        ) : (
+          <button
+            type="button"
+            className="button button-primary"
+            disabled={busy || alert.status === "convertido"}
+            onClick={() => run("convert")}
+          >
+            {pendingAction === "convert"
+              ? "Convertendo…"
+              : "Converter em investigação"}
+          </button>
+        )}
       </div>
 
       {message ? <p className={`form-message ${state}`}>{message}</p> : null}

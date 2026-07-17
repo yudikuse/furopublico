@@ -1,48 +1,58 @@
-# Razão social automática e sincronização da investigação
+# Workspace interno de investigações
 
-## O que muda
+## O que esta atualização faz
 
-1. Para empresas, o campo `Nome ou razão social` deixa de ser obrigatório quando há um CNPJ válido.
-2. O servidor consulta o CNPJ e grava a razão social retornada.
-3. Se o cadastro não for localizado e o nome estiver vazio, o sistema pede o preenchimento manual.
-4. Toda alteração da rede é sincronizada com a investigação vinculada:
-   - entidades;
-   - relações;
-   - cadastros empresariais;
-   - pagamentos CEAP;
-   - documentos e fontes;
-   - perguntas pendentes;
-   - limites das fontes;
-   - evento na linha do tempo.
-5. Entradas editoriais que não foram geradas por essa rede são preservadas.
-6. Recalcular a rede substitui somente o conteúdo anteriormente sincronizado pelo mesmo alerta.
+- cria `/admin/investigacoes`;
+- cria uma página interna clicável para cada investigação;
+- reúne entidades, relações, pagamentos, fontes, perguntas, limites,
+  linha do tempo e manifestações;
+- permite editar título, resumo, achado provisório, evidência, valor,
+  metodologia, ressalvas e tags;
+- permite adicionar fonte, evento da linha do tempo e manifestação;
+- mantém a publicação bloqueada nesta tela;
+- esconde o botão de conversão depois que o alerta já virou investigação;
+- mostra o botão `Abrir investigação` no alerta convertido;
+- troca a mensagem cadastral antiga por uma orientação para consultar a
+  Rede de Entidades;
+- adiciona as investigações em andamento ao painel principal.
 
-## Arquivos
+## Arquivos que substituem os existentes
 
-Substituir:
-
-- `components/admin-entity-network.tsx`
+- `lib/data.ts`
 - `lib/types.ts`
-- `app/api/admin/alertas/[id]/entidades/route.ts`
-- `app/api/admin/alertas/[id]/route.ts`
+- `components/admin-alert-form.tsx`
+- `components/admin-enrichment-panel.tsx`
+- `app/admin/alertas/[id]/page.tsx`
+- `app/admin/page.tsx`
+- `app/layout.tsx`
 
-Adicionar:
+## Arquivos novos
 
-- `lib/investigation-network-sync.ts`
+- `components/admin-investigation-editor.tsx`
+- `app/api/admin/investigacoes/[id]/route.ts`
+- `app/admin/investigacoes/page.tsx`
+- `app/admin/investigacoes/[id]/page.tsx`
+- `app/investigation-workspace.css`
 
-## SQL e variáveis
+## Banco de dados
 
 Não é necessário executar SQL.
-Não é necessário criar variável de ambiente.
+
+## Variáveis
+
+Não é necessário adicionar variável na Vercel.
 
 ## Depois do deploy
 
-No alerta que já possui investigação vinculada, clique em:
+Abra:
 
-`Recalcular rede`
+`https://furopublico.vercel.app/admin`
 
-Isso sincronizará a rede existente com a investigação já criada.
+A investigação da Magda deverá aparecer em **Investigações em andamento**.
+
+Também pode ser aberta diretamente pelo botão **Abrir investigação** dentro
+do alerta convertido.
 
 ## Commit sugerido
 
-`Automatizar razão social e sincronizar investigação`
+`Adicionar workspace interno de investigação`

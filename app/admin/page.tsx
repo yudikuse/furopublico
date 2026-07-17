@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { getAlerts, getAllInvestigations } from "@/lib/data";
-import { formatCurrency, formatDate } from "@/lib/format";
+import {
+  formatCurrency,
+  formatDate,
+  statusLabel
+} from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +21,13 @@ export default async function AdminPage() {
   const highPriority = pendingAlerts.filter(
     (item) =>
       item.severity === "alta" ||
-      item.enrichment?.flags.some((flag) => flag.level === "prioridade")
+      item.enrichment?.flags.some(
+        (flag) => flag.level === "prioridade"
+      )
+  );
+
+  const activeInvestigations = investigations.filter(
+    (item) => item.status !== "arquivado"
   );
 
   return (
@@ -28,13 +38,25 @@ export default async function AdminPage() {
             <p className="eyebrow">REDAÇÃO</p>
             <h1>Painel investigativo</h1>
             <p>
-              Alertas são privados até passarem por documentação, contexto e
-              contraditório.
+              Alertas são privados até passarem por documentação,
+              contexto e contraditório.
             </p>
           </div>
-          <Link className="button button-primary" href="/admin/investigacoes/nova">
-            Nova investigação
-          </Link>
+
+          <div className="admin-header-actions">
+            <Link
+              className="button button-dark"
+              href="/admin/investigacoes"
+            >
+              Investigações internas
+            </Link>
+            <Link
+              className="button button-primary"
+              href="/admin/investigacoes/nova"
+            >
+              Nova investigação
+            </Link>
+          </div>
         </div>
 
         <div className="admin-metrics admin-metrics-four">
@@ -56,6 +78,44 @@ export default async function AdminPage() {
           </article>
         </div>
 
+        <section className="admin-panel dashboard-investigations">
+          <div className="panel-heading">
+            <h2>Investigações em andamento</h2>
+            <Link href="/admin/investigacoes">Ver todas →</Link>
+          </div>
+
+          <div className="dashboard-investigation-list">
+            {activeInvestigations.slice(0, 8).map((investigation) => (
+              <Link
+                key={investigation.id}
+                href={`/admin/investigacoes/${investigation.id}`}
+              >
+                <div>
+                  <strong>{investigation.title}</strong>
+                  <span>
+                    {statusLabel(investigation.status)} ·{" "}
+                    {investigation.entities.length} entidade(s) ·{" "}
+                    {investigation.sources.length} fonte(s)
+                  </span>
+                </div>
+
+                <div>
+                  <b>
+                    {formatCurrency(investigation.involvedAmount)}
+                  </b>
+                  <time>{formatDate(investigation.updatedAt)}</time>
+                </div>
+              </Link>
+            ))}
+
+            {!activeInvestigations.length ? (
+              <p className="muted">
+                Nenhuma investigação em andamento.
+              </p>
+            ) : null}
+          </div>
+        </section>
+
         <div className="admin-grid">
           <section className="admin-panel">
             <div className="panel-heading">
@@ -72,12 +132,17 @@ export default async function AdminPage() {
                 <div>
                   <strong>{alert.title}</strong>
                   <span>
-                    {alert.deputyName ?? "Parlamentar não identificado"}
-                    {alert.supplierName ? ` — ${alert.supplierName}` : ""}
+                    {alert.deputyName ??
+                      "Parlamentar não identificado"}
+                    {alert.supplierName
+                      ? ` — ${alert.supplierName}`
+                      : ""}
                   </span>
                 </div>
                 <div>
-                  <b className={`severity severity-${alert.severity}`}>
+                  <b
+                    className={`severity severity-${alert.severity}`}
+                  >
                     {alert.severity}
                   </b>
                   {alert.enrichment ? <em>Dossiê pronto</em> : null}
@@ -95,12 +160,24 @@ export default async function AdminPage() {
               <li>O alerta apenas indica onde olhar.</li>
               <li>O dossiê soma o histórico e cruza o CNPJ.</li>
               <li>O documento original define o que foi pago.</li>
-              <li>Mercado, vínculos e beneficiário final exigem apuração.</li>
-              <li>O citado deve ser procurado antes da publicação.</li>
-              <li>Nenhuma pista automática é tratada como acusação.</li>
+              <li>
+                Mercado, vínculos e beneficiário final exigem apuração.
+              </li>
+              <li>
+                O citado deve ser procurado antes da publicação.
+              </li>
+              <li>
+                Nenhuma pista automática é tratada como acusação.
+              </li>
             </ol>
             <p className="dashboard-total">
-              Maior valor pendente: {formatCurrency(Math.max(...pendingAlerts.map((item) => item.amount ?? 0), 0))}
+              Maior valor pendente:{" "}
+              {formatCurrency(
+                Math.max(
+                  ...pendingAlerts.map((item) => item.amount ?? 0),
+                  0
+                )
+              )}
             </p>
           </section>
         </div>

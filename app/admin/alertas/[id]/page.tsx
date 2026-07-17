@@ -164,6 +164,12 @@ export default async function AlertDetailPage({ params }: PageProps) {
                   registro:
                 </p>
                 <code>{alert.investigationId}</code>
+                <Link
+                  className="button button-primary"
+                  href={`/admin/investigacoes/${alert.investigationId}`}
+                >
+                  Continuar na investigação
+                </Link>
               </div>
             ) : null}
           </div>

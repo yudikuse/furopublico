@@ -158,8 +158,9 @@ export function AdminEnrichmentPanel({ enrichment }: Props) {
             </>
           ) : (
             <p className="muted">
-              O fornecedor não possui CNPJ de 14 dígitos ou o cadastro não foi
-              localizado automaticamente.
+              A coleta inicial não retornou cadastro empresarial. Consulte a
+              Rede de Entidades abaixo, que usa fontes cadastrais alternativas
+              e deve prevalecer quando houver resultado documentado.
             </p>
           )}
         </section>

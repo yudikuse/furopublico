@@ -119,6 +119,51 @@ export const getAllInvestigations = cache(
   }
 );
 
+
+export const getInvestigationById = cache(
+  async (id: string): Promise<Investigation | null> => {
+    if (!hasSupabaseConfig()) return null;
+
+    try {
+      const supabase = createSupabaseAdmin();
+      const { data, error } = await supabase
+        .from("investigations")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data ? normalizeInvestigation(data) : null;
+    } catch (error) {
+      console.error("Falha ao consultar investigação interna.", error);
+      return null;
+    }
+  }
+);
+
+export const getAlertByInvestigationId = cache(
+  async (investigationId: string): Promise<InvestigationAlert | null> => {
+    if (!hasSupabaseConfig()) return null;
+
+    try {
+      const supabase = createSupabaseAdmin();
+      const { data, error } = await supabase
+        .from("alerts")
+        .select("*")
+        .eq("investigation_id", investigationId)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data ? normalizeAlert(data) : null;
+    } catch (error) {
+      console.error("Falha ao localizar alerta vinculado.", error);
+      return null;
+    }
+  }
+);
+
 export const getInvestigationBySlug = cache(
   async (slug: string): Promise<Investigation | null> => {
     const investigations = await getPublishedInvestigations();
