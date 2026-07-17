@@ -14,8 +14,8 @@ export default async function AlertsPage() {
           <p className="eyebrow">FILA PRIVADA</p>
           <h1>Alertas para revisão</h1>
           <p>
-            Nenhum item desta página deve ser tratado como acusação ou
-            publicado sem apuração humana.
+            O alerta é somente uma pista. Gere o dossiê, leia o documento,
+            teste explicações legítimas e registre a apuração.
           </p>
         </div>
 
@@ -27,11 +27,10 @@ export default async function AlertsPage() {
                 <th>Envolvidos</th>
                 <th>Valor</th>
                 <th>Severidade</th>
-                <th>Detectado</th>
+                <th>Dossiê</th>
                 <th>Status</th>
               </tr>
             </thead>
-
             <tbody>
               {alerts.map((alert) => (
                 <tr key={alert.id}>
@@ -56,7 +55,14 @@ export default async function AlertsPage() {
                       {alert.severity}
                     </b>
                   </td>
-                  <td>{formatDate(alert.detectedAt)}</td>
+                  <td>
+                    {alert.enrichment ? (
+                      <span className="dossier-ready">Pronto</span>
+                    ) : (
+                      <span className="dossier-pending">Pendente</span>
+                    )}
+                    <small>{formatDate(alert.enrichment?.generatedAt)}</small>
+                  </td>
                   <td>{alert.status.replaceAll("_", " ")}</td>
                 </tr>
               ))}

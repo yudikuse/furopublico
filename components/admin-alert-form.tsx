@@ -1,38 +1,50 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
 import type { InvestigationAlert } from "@/lib/types";
 
 type Props = {
   alert: InvestigationAlert;
 };
 
+type Action = "save" | "convert" | "enrich";
+
 export function AdminAlertForm({ alert }: Props) {
   const router = useRouter();
-  const [state, setState] = useState<"idle" | "sending" | "success" | "error">(
-    "idle"
-  );
+  const formRef = useRef<HTMLFormElement>(null);
+  const [pendingAction, setPendingAction] = useState<Action | null>(null);
+  const [state, setState] = useState<"idle" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
 
-  async function submit(
-    event: FormEvent<HTMLFormElement>,
-    action: "save" | "convert"
-  ) {
-    event.preventDefault();
-    setState("sending");
+  async function run(action: Action) {
+    const form = formRef.current;
+    if (!form) return;
+
+    setPendingAction(action);
+    setState("idle");
     setMessage("");
 
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-
-    const payload = {
-      action,
-      status: String(formData.get("status") ?? "novo"),
-      reviewerNotes: String(formData.get("reviewerNotes") ?? "")
-    };
-
     try {
+      if (action === "enrich") {
+        const response = await fetch(`/api/admin/alertas/${alert.id}/enriquecer`, {
+          method: "POST"
+        });
+        const data = (await response.json()) as { message?: string };
+        if (!response.ok) throw new Error(data.message ?? "Falha no enriquecimento.");
+        setState("success");
+        setMessage(data.message ?? "Dossiê automático atualizado.");
+        router.refresh();
+        return;
+      }
+
+      const formData = new FormData(form);
+      const payload = {
+        action,
+        status: String(formData.get("status") ?? "novo"),
+        reviewerNotes: String(formData.get("reviewerNotes") ?? "")
+      };
+
       const response = await fetch(`/api/admin/alertas/${alert.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -60,11 +72,33 @@ export function AdminAlertForm({ alert }: Props) {
     } catch (error) {
       setState("error");
       setMessage(error instanceof Error ? error.message : "Erro inesperado.");
+    } finally {
+      setPendingAction(null);
     }
   }
 
+  const busy = pendingAction !== null;
+
   return (
-    <form className="editorial-form admin-alert-form">
+    <form ref={formRef} className="editorial-form admin-alert-form">
+      <button
+        type="button"
+        className="button button-enrichment"
+        disabled={busy}
+        onClick={() => run("enrich")}
+      >
+        {pendingAction === "enrich"
+          ? "Cruzando dados…"
+          : alert.enrichment
+            ? "Atualizar dossiê automático"
+            : "Gerar dossiê automático"}
+      </button>
+
+      <p className="form-helper">
+        Consulta o histórico da Câmara na 57ª Legislatura, soma pagamentos,
+        compara fornecedores da categoria e busca o cadastro do CNPJ.
+      </p>
+
       <label>
         Status editorial
         <select name="status" defaultValue={alert.status}>
@@ -85,7 +119,7 @@ export function AdminAlertForm({ alert }: Props) {
           name="reviewerNotes"
           rows={10}
           defaultValue={alert.reviewerNotes ?? ""}
-          placeholder="Ex.: conferir se o gasto é anual, localizar notas fiscais, solicitar esclarecimentos ao gabinete..."
+          placeholder="Ex.: separar aluguel de IPTU, identificar o proprietário, comparar imóveis equivalentes e solicitar o contrato ao gabinete."
         />
       </label>
 
@@ -93,42 +127,25 @@ export function AdminAlertForm({ alert }: Props) {
         <button
           type="button"
           className="button button-dark"
-          disabled={state === "sending"}
-          onClick={(event) =>
-            submit(
-              {
-                ...event,
-                preventDefault: () => event.preventDefault(),
-                currentTarget: event.currentTarget.closest("form")
-              } as unknown as FormEvent<HTMLFormElement>,
-              "save"
-            )
-          }
+          disabled={busy}
+          onClick={() => run("save")}
         >
-          {state === "sending" ? "Salvando…" : "Salvar revisão"}
+          {pendingAction === "save" ? "Salvando…" : "Salvar revisão"}
         </button>
 
         <button
           type="button"
           className="button button-primary"
-          disabled={state === "sending" || alert.status === "convertido"}
-          onClick={(event) => {
-            const form = event.currentTarget.closest("form");
-            if (!form) return;
-            const synthetic = {
-              preventDefault: () => undefined,
-              currentTarget: form
-            } as unknown as FormEvent<HTMLFormElement>;
-            submit(synthetic, "convert");
-          }}
+          disabled={busy || alert.status === "convertido"}
+          onClick={() => run("convert")}
         >
-          Converter em investigação
+          {pendingAction === "convert"
+            ? "Convertendo…"
+            : "Converter em investigação"}
         </button>
       </div>
 
-      {message ? (
-        <p className={`form-message ${state}`}>{message}</p>
-      ) : null}
+      {message ? <p className={`form-message ${state}`}>{message}</p> : null}
     </form>
   );
 }

@@ -470,3 +470,147 @@ h1, h2, h3, .footer-brand { font-family: Georgia, "Times New Roman", serif; line
     grid-template-columns: 1fr;
   }
 }
+
+/* ============================================================
+   MOTOR DE ENRIQUECIMENTO INVESTIGATIVO
+   ============================================================ */
+.button-enrichment {
+  color: #fff;
+  background: #244d73;
+}
+.button-enrichment:hover { background: #193850; }
+.form-helper { margin: -8px 0 2px; color: var(--muted); font-size: 12px; }
+.enrichment-empty { margin-bottom: 22px; }
+.enrichment-empty h2 { margin: 0 0 10px; font-size: 32px; }
+.admin-enrichment {
+  margin-bottom: 22px;
+  padding: 28px;
+  background: #fff;
+  border: 1px solid #d6d5d1;
+}
+.enrichment-heading { align-items: flex-start; }
+.enrichment-heading h2 { margin: 0; font-size: 34px; }
+.enrichment-heading > span { color: var(--muted); font-size: 12px; }
+.enrichment-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin: 24px 0;
+}
+.enrichment-metrics article {
+  min-width: 0;
+  padding: 18px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+}
+.enrichment-metrics span,
+.enrichment-metrics small { display: block; }
+.enrichment-metrics span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.enrichment-metrics strong {
+  display: block;
+  margin: 7px 0;
+  overflow-wrap: anywhere;
+  font: 500 26px/1.2 Georgia, serif;
+}
+.enrichment-metrics small { color: var(--muted); }
+.enrichment-flags { display: grid; gap: 10px; margin: 28px 0; }
+.enrichment-flags h3 { margin: 0 0 5px; }
+.flag { padding: 16px; border-left: 5px solid; background: #f7f4ed; }
+.flag p { margin: 5px 0 0; color: var(--muted); }
+.flag-info { border-color: var(--blue); }
+.flag-atencao { border-color: var(--amber); background: #fff4d8; }
+.flag-prioridade { border-color: var(--red); background: #ffe9ea; }
+.enrichment-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin: 25px 0;
+}
+.enrichment-grid > section {
+  padding: 22px;
+  background: #fbfaf6;
+  border: 1px solid var(--line);
+}
+.enrichment-grid h3 { margin-top: 0; font-size: 27px; }
+.enrichment-grid h4,
+.enrichment-table-wrap h3,
+.enrichment-table-wrap h4 { margin: 22px 0 10px; }
+.enrichment-definition-list { margin: 0; }
+.enrichment-definition-list div {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 15px;
+  padding: 10px 0;
+  border-bottom: 1px solid #e5e1d8;
+}
+.enrichment-definition-list dt { color: var(--muted); font-size: 11px; font-weight: 900; text-transform: uppercase; }
+.enrichment-definition-list dd { margin: 0; overflow-wrap: anywhere; font-weight: 700; }
+.partners-list p {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 10px 0;
+  border-bottom: 1px solid #e5e1d8;
+}
+.partners-list span { color: var(--muted); font-size: 12px; }
+.enrichment-table-wrap { overflow-x: auto; }
+.enrichment-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.enrichment-table th,
+.enrichment-table td { padding: 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.enrichment-table th { color: var(--muted); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+.enrichment-table td small { display: block; color: var(--muted); }
+.enrichment-table a { color: var(--red); font-weight: 800; }
+.top-suppliers { margin-top: 28px; }
+.enrichment-documents { margin-top: 26px; border-top: 1px solid var(--line); }
+.enrichment-documents summary,
+.enrichment-errors summary {
+  padding: 16px 0;
+  cursor: pointer;
+  color: var(--red);
+  font-weight: 900;
+}
+.investigation-questions {
+  margin-top: 28px;
+  padding: 22px;
+  color: #fff;
+  background: var(--ink);
+}
+.investigation-questions h3 { margin-top: 0; }
+.investigation-questions li { margin: 9px 0; color: #ddd6ce; }
+.enrichment-errors { margin-top: 18px; }
+.enrichment-errors li { color: var(--muted); }
+.dossier-ready,
+.dossier-pending {
+  display: inline-block;
+  padding: 4px 7px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.dossier-ready { color: #fff; background: var(--green); }
+.dossier-pending { color: #563b0c; background: #ffd890; }
+.admin-metrics-four { grid-template-columns: repeat(4, 1fr); }
+.alert-row-link { color: inherit; }
+.alert-row-link:hover strong { color: var(--red); }
+.alert-row em { display: block; margin-top: 4px; color: var(--green); font-size: 10px; font-style: normal; font-weight: 900; }
+.dashboard-total { margin: 22px 0 0; color: var(--muted); font-weight: 800; }
+
+@media (max-width: 1000px) {
+  .enrichment-metrics,
+  .admin-metrics-four { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 760px) {
+  .enrichment-grid,
+  .enrichment-metrics,
+  .admin-metrics-four { grid-template-columns: 1fr; }
+  .admin-enrichment { padding: 20px; }
+  .enrichment-definition-list div { grid-template-columns: 1fr; gap: 3px; }
+}

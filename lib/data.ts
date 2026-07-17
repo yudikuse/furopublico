@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { demoAlerts, demoInvestigations } from "@/lib/demo-data";
 import { createSupabaseAdmin, hasSupabaseConfig } from "@/lib/supabase-admin";
-import type { Investigation, InvestigationAlert } from "@/lib/types";
+import type { AlertEnrichment, Investigation, InvestigationAlert } from "@/lib/types";
 
 function normalizeInvestigation(row: Record<string, unknown>): Investigation {
   return {
@@ -51,7 +51,13 @@ function normalizeAlert(row: Record<string, unknown>): InvestigationAlert {
         : Number(row.amount),
     evidence: (row.evidence as Record<string, unknown> | null) ?? {},
     reviewerNotes: row.reviewer_notes ? String(row.reviewer_notes) : undefined,
-    investigationId: row.investigation_id ? String(row.investigation_id) : undefined
+    investigationId: row.investigation_id ? String(row.investigation_id) : undefined,
+    enrichment:
+      row.evidence &&
+      typeof row.evidence === "object" &&
+      (row.evidence as Record<string, unknown>).enrichment
+        ? ((row.evidence as Record<string, unknown>).enrichment as AlertEnrichment)
+        : undefined
   };
 }
 
@@ -80,6 +86,27 @@ export const getPublishedInvestigations = cache(
   }
 );
 
+export const getAllInvestigations = cache(
+  async (): Promise<Investigation[]> => {
+    if (!hasSupabaseConfig()) return [];
+
+    try {
+      const supabase = createSupabaseAdmin();
+      const { data, error } = await supabase
+        .from("investigations")
+        .select("*")
+        .order("updated_at", { ascending: false })
+        .limit(300);
+
+      if (error) throw error;
+      return (data ?? []).map(normalizeInvestigation);
+    } catch (error) {
+      console.error("Falha ao consultar investigações internas.", error);
+      return [];
+    }
+  }
+);
+
 export const getInvestigationBySlug = cache(
   async (slug: string): Promise<Investigation | null> => {
     const investigations = await getPublishedInvestigations();
@@ -96,7 +123,7 @@ export const getAlerts = cache(async (): Promise<InvestigationAlert[]> => {
       .from("alerts")
       .select("*")
       .order("detected_at", { ascending: false })
-      .limit(500);
+      .limit(1000);
 
     if (error) throw error;
     return (data ?? []).map(normalizeAlert);

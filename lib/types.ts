@@ -87,6 +87,77 @@ export type Investigation = {
   caveat: string;
 };
 
+
+export type EnrichmentFlag = {
+  level: "info" | "atencao" | "prioridade";
+  title: string;
+  detail: string;
+};
+
+export type AlertEnrichment = {
+  version: 1;
+  generatedAt: string;
+  period: { from: number; to: number };
+  deputy: { id?: string; name?: string };
+  supplier: { taxId?: string; name?: string };
+  company: {
+    source: "BrasilAPI";
+    taxId: string;
+    legalName?: string;
+    tradeName?: string;
+    status?: string;
+    openingDate?: string;
+    mainActivity?: string;
+    legalNature?: string;
+    size?: string;
+    capital?: number;
+    address?: string;
+    municipality?: string;
+    state?: string;
+    partners: Array<{ name: string; qualification?: string }>;
+    raw: Record<string, unknown>;
+  } | null;
+  history: {
+    allExpensesCount: number;
+    sameSupplierCount: number;
+    sameSupplierTotal: number;
+    categoryTotal: number;
+    supplierShare?: number;
+    firstPaymentDate?: string;
+    lastPaymentDate?: string;
+    averagePayment: number;
+    largestPayment: number;
+    recurringAmount?: number;
+    recurringCount: number;
+    annualTotals: Array<{ label: string; total: number }>;
+    monthlyTotals: Array<{ label: string; total: number }>;
+    topSuppliers: Array<{ name: string; taxId: string; total: number; count: number }>;
+    duplicateCandidates: Array<{
+      count: number;
+      supplierName: string;
+      documentNumber: string;
+      date?: string;
+      amount: number;
+    }>;
+    documents: Array<{
+      date?: string;
+      amount: number;
+      category: string;
+      documentNumber: string;
+      documentCode: string;
+      url?: string;
+    }>;
+  };
+  flags: EnrichmentFlag[];
+  questions: string[];
+  sourceStatus: {
+    camara: "ok" | "partial" | "error";
+    cnpj: "ok" | "not_found" | "not_applicable" | "error";
+    errors: string[];
+  };
+  disclaimer: string;
+};
+
 export type InvestigationAlert = {
   id: string;
   title: string;
@@ -100,4 +171,5 @@ export type InvestigationAlert = {
   evidence: Record<string, unknown>;
   reviewerNotes?: string;
   investigationId?: string;
+  enrichment?: AlertEnrichment;
 };

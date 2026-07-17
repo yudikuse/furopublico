@@ -16,120 +16,93 @@ let file = getArg("file");
 
 if (!file) {
   const directory = path.resolve("data/alerts");
-
   const files = (await fs.readdir(directory))
     .filter((name) => name.endsWith(".json"))
     .sort();
 
-  file = files.at(-1)
-    ? path.resolve(directory, files.at(-1))
-    : null;
+  file = files.at(-1) ? path.resolve(directory, files.at(-1)) : null;
 }
 
-if (!file) {
-  throw new Error("Nenhum arquivo de alertas encontrado.");
-}
+if (!file) throw new Error("Nenhum arquivo de alertas encontrado.");
 
 console.log(`Lendo alertas de: ${file}`);
-
 const payload = await readJson(file);
 const alerts = Array.isArray(payload.data) ? payload.data : [];
-
-const uniqueRows = new Map();
+const uniqueAlerts = new Map();
 
 for (const alert of alerts) {
   const externalId = String(alert.id ?? "").trim();
+  if (!externalId) continue;
+  uniqueAlerts.set(externalId, alert);
+}
 
-  if (!externalId) {
-    console.warn(
-      `Alerta ignorado porque não possui ID: ${alert.title ?? "sem título"}`
-    );
-    continue;
+const supabase = createClient(url, key, {
+  auth: { persistSession: false, autoRefreshToken: false }
+});
+
+const ids = [...uniqueAlerts.keys()];
+const existingById = new Map();
+
+for (let index = 0; index < ids.length; index += 200) {
+  const batch = ids.slice(index, index + 200);
+  const { data, error } = await supabase
+    .from("alerts")
+    .select("external_id,evidence")
+    .in("external_id", batch);
+
+  if (error) throw error;
+  for (const row of data ?? []) {
+    existingById.set(row.external_id, row.evidence ?? {});
   }
+}
 
-  /*
-   * O Map elimina alertas repetidos dentro do mesmo arquivo.
-   * Caso o mesmo external_id apareça mais de uma vez,
-   * somente uma linha será enviada ao Supabase.
-   */
-  uniqueRows.set(externalId, {
+const rows = [...uniqueAlerts.entries()].map(([externalId, alert]) => {
+  const previousEvidence = existingById.get(externalId) ?? {};
+  const incomingEvidence =
+    alert.evidence && typeof alert.evidence === "object"
+      ? alert.evidence
+      : {};
+
+  return {
     external_id: externalId,
     title: String(alert.title ?? "Alerta sem título"),
     rule: String(alert.rule ?? "Regra não informada"),
     severity: ["baixa", "media", "alta"].includes(alert.severity)
       ? alert.severity
       : "media",
-
-    /*
-     * Não enviamos "status".
-     * Para alertas novos, o banco usa o padrão "novo".
-     * Para alertas existentes, isso evita apagar uma revisão humana
-     * e voltar o status para "novo".
-     */
-    detected_at:
-      alert.detectedAt ?? new Date().toISOString(),
-
+    detected_at: alert.detectedAt ?? new Date().toISOString(),
     deputy_name: alert.deputyName ?? null,
     supplier_name: alert.supplierName ?? null,
     amount:
       typeof alert.amount === "number" && Number.isFinite(alert.amount)
         ? alert.amount
         : null,
-
-    evidence:
-      alert.evidence &&
-      typeof alert.evidence === "object"
-        ? alert.evidence
-        : {}
-  });
-}
-
-const rows = [...uniqueRows.values()];
-
-console.log(`Alertas encontrados no arquivo: ${alerts.length}`);
-console.log(`Alertas únicos para importar: ${rows.length}`);
-console.log(`Duplicados eliminados: ${alerts.length - rows.length}`);
-
-if (!rows.length) {
-  console.log("Nenhum alerta válido para importar.");
-  process.exit(0);
-}
-
-const supabase = createClient(url, key, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false
-  }
+    evidence: {
+      ...previousEvidence,
+      ...incomingEvidence,
+      enrichment:
+        previousEvidence.enrichment ?? incomingEvidence.enrichment ?? undefined,
+      manualInterpretation:
+        previousEvidence.manualInterpretation ??
+        incomingEvidence.manualInterpretation ??
+        undefined
+    }
+  };
 });
 
-const batchSize = 200;
+console.log(`Alertas no arquivo: ${alerts.length}`);
+console.log(`Alertas únicos: ${rows.length}`);
+console.log(`Duplicados eliminados: ${alerts.length - rows.length}`);
 
-for (let index = 0; index < rows.length; index += batchSize) {
-  const batch = rows.slice(index, index + batchSize);
+for (let index = 0; index < rows.length; index += 200) {
+  const batch = rows.slice(index, index + 200);
+  const { error } = await supabase.from("alerts").upsert(batch, {
+    onConflict: "external_id",
+    ignoreDuplicates: false
+  });
 
-  const { error } = await supabase
-    .from("alerts")
-    .upsert(batch, {
-      onConflict: "external_id",
-      ignoreDuplicates: false
-    });
-
-  if (error) {
-    console.error("Erro ao importar lote:", {
-      inicio: index,
-      fim: index + batch.length,
-      mensagem: error.message,
-      detalhes: error.details,
-      dica: error.hint,
-      codigo: error.code
-    });
-
-    throw error;
-  }
-
-  console.log(
-    `Importados ${Math.min(index + batch.length, rows.length)} de ${rows.length}`
-  );
+  if (error) throw error;
+  console.log(`Importados ${Math.min(index + batch.length, rows.length)} de ${rows.length}`);
 }
 
-console.log("Importação concluída com sucesso.");
+console.log("Importação concluída com preservação dos dossiês automáticos.");
