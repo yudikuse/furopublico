@@ -1,8 +1,22 @@
-Validação realizada
+VALIDAÇÃO
 
-- `node --check scripts/camara/sync-verba-gabinete.mjs`: aprovado.
-- Preservada a coleta mensal existente.
-- Preservados os caminhos de saída em data/raw/office-budget.
-- Adicionadas três fontes oficiais alternativas para o diretório de deputados.
-- Snapshot diário tornou-se não bloqueante somente em execução histórica.
-- Não foi possível realizar teste de rede ao vivo no ambiente local.
+JavaScript:
+- sync-verba-gabinete.mjs: node --check aprovado
+- detectar-verba-gabinete.mjs: node --check aprovado
+- importar-verba-gabinete.mjs: node --check aprovado
+
+TSX:
+- admin-office-budget.tsx: transpilação TypeScript aprovada
+- admin-parliamentary-modules.tsx: transpilação TypeScript aprovada
+- page.tsx de integração: transpilação TypeScript aprovada
+
+Teste funcional local:
+- 1 parlamentar processado
+- 6 competências mensais processadas
+- último gasto: R$ 165.614,39
+- disponível: R$ 165.806,07
+- utilização calculada: 99,88%
+- caso gerado e pronto para o importador
+
+Limite:
+- teste de rede ao vivo não realizado no ambiente local.

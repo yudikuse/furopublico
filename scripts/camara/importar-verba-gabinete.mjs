@@ -99,8 +99,13 @@ function recomputeSummary(module) {
   return {
     monthCount: months.length,
     latestCompetence: latest?.competence ?? null,
-    latestTotalPublished: Number(latest?.totalPublished ?? 0),
-    latestStaffCount: Number(latest?.staffCount ?? 0),
+    latestTotalPublished: Number(latest?.totalSpent ?? latest?.totalPublished ?? 0),
+    latestTotalAvailable: Number(latest?.totalAvailable ?? 0),
+    latestUtilization: Number(latest?.utilization ?? 0),
+    latestStaffCount:
+      latest?.staffCount === null || latest?.staffCount === undefined
+        ? null
+        : Number(latest.staffCount),
     currentSnapshotStaffCount: module.currentSnapshot?.staffCount ?? null,
     signalCount: signals.length,
     signalTypeCount: new Set(signals.map((signal) => signal.type)).size,
@@ -115,7 +120,9 @@ function mergeOfficeBudget(previous, incoming) {
   const coveredYears = new Set(
     (incoming.months ?? []).map((month) => Number(String(month.competence).slice(0, 4)))
   );
-  if (incoming.analyzedYear) coveredYears.add(Number(incoming.analyzedYear));
+  if (incoming.analyzedYear && !incoming.snapshotOnly) {
+    coveredYears.add(Number(incoming.analyzedYear));
+  }
 
   const months = unionBy(
     [...(previous.months ?? []), ...(incoming.months ?? [])],

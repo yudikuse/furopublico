@@ -2,37 +2,6 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
 
-const MONTHS = [
-  "janeiro",
-  "fevereiro",
-  "marco",
-  "abril",
-  "maio",
-  "junho",
-  "julho",
-  "agosto",
-  "setembro",
-  "outubro",
-  "novembro",
-  "dezembro"
-];
-
-const MONTH_ALIASES = new Map([
-  ["janeiro", 1],
-  ["fevereiro", 2],
-  ["marco", 3],
-  ["março", 3],
-  ["abril", 4],
-  ["maio", 5],
-  ["junho", 6],
-  ["julho", 7],
-  ["agosto", 8],
-  ["setembro", 9],
-  ["outubro", 10],
-  ["novembro", 11],
-  ["dezembro", 12]
-]);
-
 const args = new Map(
   process.argv.slice(2).map((value) => {
     const [key, ...rest] = value.replace(/^--/, "").split("=");
@@ -45,8 +14,14 @@ const years = String(args.get("years") ?? `${currentYear - 1},${currentYear}`)
   .split(",")
   .map((value) => Number(value.trim()))
   .filter((value) => Number.isInteger(value) && value >= 2023 && value <= currentYear);
-
+const requestedDeputyIds = new Set(
+  String(args.get("deputy-ids") ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+);
 const snapshotOnly = args.get("snapshot-only") === "true";
+const concurrency = Math.max(1, Math.min(16, Number(args.get("concurrency") ?? 8) || 8));
 const outputDirectory = path.resolve("data/raw/office-budget");
 await fs.mkdir(outputDirectory, { recursive: true });
 
@@ -57,58 +32,46 @@ function normalize(value) {
     .toLowerCase();
 }
 
-function sha256(buffer) {
-  return createHash("sha256").update(buffer).digest("hex");
+function sha256(value) {
+  return createHash("sha256").update(value).digest("hex");
 }
 
 function errorDetails(error) {
   const messages = [];
   let current = error;
-
   for (let depth = 0; current && depth < 5; depth += 1) {
     const message = current?.message ?? String(current);
     const code = current?.code ? ` [${current.code}]` : "";
-    if (message && !messages.includes(`${message}${code}`)) {
-      messages.push(`${message}${code}`);
-    }
+    if (message && !messages.includes(`${message}${code}`)) messages.push(`${message}${code}`);
     current = current?.cause;
   }
-
   return messages.join(" <- ") || "erro desconhecido";
 }
 
-async function fetchWithRetry(url, options = {}, attempts = 4) {
+async function fetchWithRetry(url, options = {}, attempts = 3) {
   let lastError;
-  const { timeoutMs = 45_000, headers: suppliedHeaders, ...fetchOptions } = options;
+  const { timeoutMs = 35_000, headers: suppliedHeaders, ...fetchOptions } = options;
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
-
     try {
       const response = await fetch(url, {
         ...fetchOptions,
         redirect: "follow",
         signal: fetchOptions.signal ?? controller.signal,
         headers: {
-          "user-agent": "FuroPublico/1.1 (+monitoramento jornalistico; contato no repositorio)",
+          "user-agent": "FuroPublico/2.0 (+monitoramento jornalistico; fonte oficial)",
           accept: "text/html,application/json,text/csv,application/octet-stream,*/*",
           ...suppliedHeaders
         }
       });
-
-      if (!response.ok) {
-        throw new Error(`${response.status} ${response.statusText}`);
-      }
-
+      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
       return response;
     } catch (error) {
       lastError = error;
-      console.warn(
-        `Tentativa ${attempt}/${attempts} falhou para ${url}: ${errorDetails(error)}`
-      );
       if (attempt < attempts) {
-        await new Promise((resolve) => setTimeout(resolve, attempt * 2_000));
+        await new Promise((resolve) => setTimeout(resolve, attempt * 1_500));
       }
     } finally {
       clearTimeout(timer);
@@ -118,115 +81,8 @@ async function fetchWithRetry(url, options = {}, attempts = 4) {
   throw new Error(`Falha ao baixar ${url}: ${errorDetails(lastError)}`);
 }
 
-function absoluteUrl(href, baseUrl) {
-  try {
-    return new URL(href, baseUrl).toString();
-  } catch {
-    return "";
-  }
-}
-
-function extractCsvLinks(html, pageUrl, year) {
-  const links = new Map();
-  const hrefPattern = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
-  let match;
-
-  while ((match = hrefPattern.exec(html))) {
-    const href = absoluteUrl(match[1], pageUrl);
-    const label = normalize(match[2].replace(/<[^>]+>/g, " "));
-    const normalizedHref = normalize(href);
-
-    if (!label.includes("csv") && !normalizedHref.endsWith("-csv")) continue;
-
-    const monthMatch = normalizedHref.match(
-      /(janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)-de-(\d{4})-csv/
-    );
-
-    if (!monthMatch || Number(monthMatch[2]) !== year) continue;
-    const month = MONTH_ALIASES.get(monthMatch[1]);
-    if (!month) continue;
-    links.set(month, href);
-  }
-
-  return [...links.entries()]
-    .map(([month, url]) => ({ year, month, url }))
-    .sort((a, b) => a.month - b.month);
-}
-
-async function syncRemunerationYear(year) {
-  const pageUrl =
-    `https://www2.camara.leg.br/transparencia/recursos-humanos/remuneracao/` +
-    `relatorios-consolidados-por-ano-e-mes/${year}`;
-
-  console.log(`Consultando página de remuneração: ${pageUrl}`);
-  const pageResponse = await fetchWithRetry(pageUrl);
-  const html = await pageResponse.text();
-  let links = extractCsvLinks(html, pageUrl, year);
-
-  if (!links.length) {
-    const lastMonth = year === currentYear ? new Date().getUTCMonth() + 1 : 12;
-    links = MONTHS.slice(0, lastMonth).map((monthName, index) => ({
-      year,
-      month: index + 1,
-      url: `${pageUrl}/${monthName}-de-${year}-csv`
-    }));
-  }
-
-  const saved = [];
-
-  for (const item of links) {
-    const competence = `${item.year}-${String(item.month).padStart(2, "0")}`;
-    try {
-      const response = await fetchWithRetry(item.url, {}, 2);
-      const buffer = Buffer.from(await response.arrayBuffer());
-
-      if (!buffer.length) {
-        console.warn(`Arquivo vazio ignorado: ${item.url}`);
-        continue;
-      }
-
-      const csvPath = path.join(
-        outputDirectory,
-        `remuneracao-${competence}.csv`
-      );
-      const metadataPath = path.join(
-        outputDirectory,
-        `remuneracao-${competence}.metadata.json`
-      );
-
-      await fs.writeFile(csvPath, buffer);
-      await fs.writeFile(
-        metadataPath,
-        JSON.stringify(
-          {
-            sourceUrl: item.url,
-            pageUrl,
-            competence,
-            downloadedAt: new Date().toISOString(),
-            contentType: response.headers.get("content-type"),
-            contentDisposition: response.headers.get("content-disposition"),
-            byteLength: buffer.length,
-            sha256: sha256(buffer)
-          },
-          null,
-          2
-        )
-      );
-
-      saved.push(competence);
-      console.log(`Remuneração salva: ${competence}`);
-    } catch (error) {
-      console.warn(`Competência ${competence} indisponível: ${error.message}`);
-    }
-  }
-
-  return saved;
-}
-
-
-function cleanText(value) {
+function decodeHtmlEntities(value) {
   return String(value ?? "")
-    .replace(/<[^>]+>/g, " ")
     .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
     .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(Number.parseInt(code, 16)))
     .replace(/&nbsp;/gi, " ")
@@ -244,9 +100,80 @@ function cleanText(value) {
     .replace(/&ocirc;/gi, "ô")
     .replace(/&otilde;/gi, "õ")
     .replace(/&uacute;/gi, "ú")
-    .replace(/&ccedil;/gi, "ç")
+    .replace(/&ccedil;/gi, "ç");
+}
+
+function cleanText(value) {
+  return decodeHtmlEntities(String(value ?? "").replace(/<[^>]+>/g, " "))
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function parseBrazilianNumber(value) {
+  const text = cleanText(value)
+    .replace(/R\$/gi, "")
+    .replace(/\s/g, "")
+    .replace(/\.(?=\d{3}(?:\D|$))/g, "")
+    .replace(",", ".")
+    .replace(/[^0-9.-]/g, "");
+  const number = Number(text);
+  return Number.isFinite(number) ? number : null;
+}
+
+const MONTH_NAMES = new Map([
+  ["janeiro", 1], ["jan", 1], ["fevereiro", 2], ["fev", 2],
+  ["marco", 3], ["março", 3], ["mar", 3], ["abril", 4], ["abr", 4],
+  ["maio", 5], ["mai", 5], ["junho", 6], ["jun", 6], ["julho", 7],
+  ["jul", 7], ["agosto", 8], ["ago", 8], ["setembro", 9], ["set", 9],
+  ["outubro", 10], ["out", 10], ["novembro", 11], ["nov", 11],
+  ["dezembro", 12], ["dez", 12]
+]);
+
+function parseMonth(value) {
+  const text = normalize(cleanText(value)).replace(/[^a-z0-9]+/g, "").trim();
+  if (/^(?:0?[1-9]|1[0-2])$/.test(text)) return Number(text);
+  return MONTH_NAMES.get(text) ?? null;
+}
+
+function extractOfficeBudgetMonths(html) {
+  const months = new Map();
+  const rowPattern = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
+  const cellPattern = /<(?:th|td)\b[^>]*>([\s\S]*?)<\/(?:th|td)>/gi;
+  let rowMatch;
+
+  while ((rowMatch = rowPattern.exec(html))) {
+    const cells = [];
+    let cellMatch;
+    while ((cellMatch = cellPattern.exec(rowMatch[1]))) cells.push(cleanText(cellMatch[1]));
+    if (cells.length < 3) continue;
+
+    const month = parseMonth(cells[0]);
+    if (!month) continue;
+    const numeric = cells.slice(1).map(parseBrazilianNumber).filter((value) => value !== null);
+    if (numeric.length < 2) continue;
+
+    months.set(month, {
+      month,
+      available: Number(numeric[0]),
+      spent: Number(numeric[1])
+    });
+  }
+
+  if (!months.size) {
+    const text = cleanText(html);
+    const fallback = /(?:^|\s)(0?[1-9]|1[0-2])\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})(?=\s|$)/g;
+    let match;
+    while ((match = fallback.exec(text))) {
+      const month = Number(match[1]);
+      months.set(month, {
+        month,
+        available: Number(parseBrazilianNumber(match[2]) ?? 0),
+        spent: Number(parseBrazilianNumber(match[3]) ?? 0)
+      });
+    }
+  }
+
+  return [...months.values()].sort((a, b) => a.month - b.month);
 }
 
 function normalizeDeputyRows(payload) {
@@ -261,14 +188,9 @@ function normalizeDeputyRows(payload) {
   return rows
     .map((row) => {
       const status = row?.ultimoStatus ?? row?.status ?? {};
-      const id = String(
-        row?.id ?? status?.id ?? String(row?.uri ?? "").match(/(\d+)$/)?.[1] ?? ""
-      );
-      const name = cleanText(
-        status?.nome ?? status?.nomeEleitoral ?? row?.nomeEleitoral ?? row?.nome ?? ""
-      );
+      const id = String(row?.id ?? status?.id ?? String(row?.uri ?? "").match(/(\d+)$/)?.[1] ?? "");
+      const name = cleanText(status?.nome ?? status?.nomeEleitoral ?? row?.nomeEleitoral ?? row?.nome ?? "");
       if (!id || !name) return null;
-
       return {
         ...row,
         id,
@@ -286,49 +208,26 @@ function normalizeDeputyRows(payload) {
 }
 
 async function fetchDeputiesFromStaticFile() {
-  const url =
-    "https://dadosabertos.camara.leg.br/arquivos/deputados/json/deputados.json";
+  const url = "https://dadosabertos.camara.leg.br/arquivos/deputados/json/deputados.json";
   const response = await fetchWithRetry(url, {}, 3);
-  const payload = await response.json();
-  const rows = normalizeDeputyRows(payload);
+  const rows = normalizeDeputyRows(await response.json());
   if (!rows.length) throw new Error("Arquivo oficial retornou zero deputados válidos.");
   return { rows, sourceUrl: url, sourceType: "dados-abertos-arquivo" };
 }
 
 async function fetchDeputiesFromApi() {
   const rows = [];
-  let page = 1;
-  let nextUrl =
-    "https://dadosabertos.camara.leg.br/api/v2/deputados" +
-    "?idLegislatura=57&ordem=ASC&ordenarPor=nome&itens=100&pagina=1";
-
-  while (nextUrl && page <= 10) {
-    const response = await fetchWithRetry(nextUrl, {}, 3);
+  for (let page = 1; page <= 10; page += 1) {
+    const url = "https://dadosabertos.camara.leg.br/api/v2/deputados" +
+      `?idLegislatura=57&ordem=ASC&ordenarPor=nome&itens=100&pagina=${page}`;
+    const response = await fetchWithRetry(url, {}, 3);
     const payload = await response.json();
     const batch = normalizeDeputyRows(payload);
     rows.push(...batch);
-
-    const next = Array.isArray(payload?.links)
-      ? payload.links.find((link) => String(link?.rel).toLowerCase() === "next")?.href
-      : null;
-
-    if (next) {
-      nextUrl = next;
-    } else if (batch.length >= 100) {
-      page += 1;
-      nextUrl =
-        "https://dadosabertos.camara.leg.br/api/v2/deputados" +
-        `?idLegislatura=57&ordem=ASC&ordenarPor=nome&itens=100&pagina=${page}`;
-    } else {
-      nextUrl = null;
-    }
-
-    page += next ? 1 : 0;
+    if (batch.length < 100) break;
   }
-
   const unique = [...new Map(rows.map((row) => [String(row.id), row])).values()];
   if (!unique.length) throw new Error("API oficial retornou zero deputados válidos.");
-
   return {
     rows: unique,
     sourceUrl: "https://dadosabertos.camara.leg.br/api/v2/deputados?idLegislatura=57",
@@ -339,42 +238,31 @@ async function fetchDeputiesFromApi() {
 async function fetchDeputiesFromPortal() {
   const deputies = new Map();
   let emptyPages = 0;
-
   for (let page = 1; page <= 35 && emptyPages < 2; page += 1) {
-    const url =
-      "https://www.camara.leg.br/deputados/quem-sao/resultado" +
-      `?legislatura=57&pagina=${page}`;
-    const response = await fetchWithRetry(url, {}, 3);
+    const url = `https://www.camara.leg.br/deputados/quem-sao/resultado?legislatura=57&pagina=${page}`;
+    const response = await fetchWithRetry(url, {}, 2);
     const html = await response.text();
     const before = deputies.size;
     const pattern = /<a\b[^>]*href=["'](?:https:\/\/www\.camara\.leg\.br)?\/deputados\/(\d+)(?:[\/?#"'])[^>]*>([\s\S]*?)<\/a>/gi;
     let match;
-
     while ((match = pattern.exec(html))) {
       const id = String(match[1]);
       const name = cleanText(match[2]);
       if (!name || normalize(name).includes("saiba mais")) continue;
-      const current = deputies.get(id);
-      if (!current || name.length > current.nome.length) {
-        deputies.set(id, {
-          id,
-          nome: name,
-          nomeEleitoral: name,
-          ultimoStatus: { id, nome: name, nomeEleitoral: name }
-        });
-      }
+      deputies.set(id, {
+        id,
+        nome: name,
+        nomeEleitoral: name,
+        ultimoStatus: { id, nome: name, nomeEleitoral: name }
+      });
     }
-
     emptyPages = deputies.size === before ? emptyPages + 1 : 0;
   }
-
   const rows = [...deputies.values()];
   if (!rows.length) throw new Error("Portal oficial retornou zero deputados válidos.");
-
   return {
     rows,
-    sourceUrl:
-      "https://www.camara.leg.br/deputados/quem-sao/resultado?legislatura=57",
+    sourceUrl: "https://www.camara.leg.br/deputados/quem-sao/resultado?legislatura=57",
     sourceType: "portal-camara-html"
   };
 }
@@ -385,11 +273,9 @@ async function copyCachedDeputyDirectory() {
     path.resolve("data/raw/camara/deputados.json"),
     path.resolve("data/raw/office-budget/deputados.json")
   ];
-
   for (const candidate of candidates) {
     try {
-      const payload = JSON.parse(await fs.readFile(candidate, "utf8"));
-      const rows = normalizeDeputyRows(payload);
+      const rows = normalizeDeputyRows(JSON.parse(await fs.readFile(candidate, "utf8")));
       if (rows.length) {
         return {
           rows,
@@ -398,22 +284,16 @@ async function copyCachedDeputyDirectory() {
         };
       }
     } catch {
-      // Tenta a próxima cópia local.
+      // Tenta a próxima cópia.
     }
   }
-
   return null;
 }
 
 async function syncDeputyDirectory() {
   const errors = [];
   let result = null;
-
-  for (const strategy of [
-    fetchDeputiesFromStaticFile,
-    fetchDeputiesFromApi,
-    fetchDeputiesFromPortal
-  ]) {
+  for (const strategy of [fetchDeputiesFromStaticFile, fetchDeputiesFromApi, fetchDeputiesFromPortal]) {
     try {
       result = await strategy();
       break;
@@ -422,89 +302,134 @@ async function syncDeputyDirectory() {
       console.warn(`Fonte de deputados indisponível (${strategy.name}): ${errorDetails(error)}`);
     }
   }
-
   result ??= await copyCachedDeputyDirectory();
   if (!result?.rows?.length) {
-    throw new Error(
-      "Não foi possível obter o diretório de deputados por nenhuma fonte oficial ou cache local. " +
-      errors.join(" | ")
-    );
+    throw new Error("Não foi possível obter o diretório de deputados. " + errors.join(" | "));
   }
 
+  const selectedRows = requestedDeputyIds.size
+    ? result.rows.filter((row) => requestedDeputyIds.has(String(row.id)))
+    : result.rows;
   const buffer = Buffer.from(JSON.stringify({ dados: result.rows }, null, 2));
-  const filePath = path.join(outputDirectory, "deputados.json");
-  const metadataPath = path.join(outputDirectory, "deputados.metadata.json");
-
-  await fs.writeFile(filePath, buffer);
+  await fs.writeFile(path.join(outputDirectory, "deputados.json"), buffer);
   await fs.writeFile(
-    metadataPath,
-    JSON.stringify(
-      {
-        sourceUrl: result.sourceUrl,
-        sourceType: result.sourceType,
-        downloadedAt: new Date().toISOString(),
-        contentType: "application/json",
-        recordCount: result.rows.length,
-        byteLength: buffer.length,
-        sha256: sha256(buffer),
-        failedStrategies: errors
-      },
-      null,
-      2
-    )
+    path.join(outputDirectory, "deputados.metadata.json"),
+    JSON.stringify({
+      sourceUrl: result.sourceUrl,
+      sourceType: result.sourceType,
+      downloadedAt: new Date().toISOString(),
+      recordCount: result.rows.length,
+      selectedCount: selectedRows.length,
+      byteLength: buffer.length,
+      sha256: sha256(buffer),
+      failedStrategies: errors
+    }, null, 2)
   );
+  console.log(`Diretório de deputados: ${selectedRows.length} selecionado(s).`);
+  return selectedRows;
+}
 
-  console.log(
-    `Diretório oficial de deputados salvo: ${result.rows.length} registro(s) via ${result.sourceType}.`
-  );
+async function mapLimit(items, limit, worker) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  async function run() {
+    while (true) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= items.length) return;
+      results[index] = await worker(items[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, run));
+  return results;
+}
+
+async function syncOfficeBudgetYear(year, deputies) {
+  let completed = 0;
+  const failures = [];
+  const results = await mapLimit(deputies, concurrency, async (deputy) => {
+    const deputyId = String(deputy.id);
+    const deputyName = cleanText(deputy?.ultimoStatus?.nome ?? deputy?.nomeEleitoral ?? deputy?.nome ?? deputyId);
+    const sourceUrl = `https://www.camara.leg.br/deputados/${deputyId}/verba-gabinete?ano=${year}`;
+    try {
+      const response = await fetchWithRetry(sourceUrl, { timeoutMs: 30_000 }, 2);
+      const html = await response.text();
+      const months = extractOfficeBudgetMonths(html);
+      completed += 1;
+      if (completed % 50 === 0 || completed === deputies.length) {
+        console.log(`Verba de gabinete ${year}: ${completed}/${deputies.length} páginas consultadas.`);
+      }
+      if (!months.length) return null;
+      return {
+        deputyId,
+        deputyName,
+        year,
+        sourceUrl,
+        fetchedAt: new Date().toISOString(),
+        checksum: sha256(Buffer.from(html)),
+        months
+      };
+    } catch (error) {
+      completed += 1;
+      failures.push({ deputyId, deputyName, sourceUrl, error: errorDetails(error) });
+      if (completed % 50 === 0 || completed === deputies.length) {
+        console.log(`Verba de gabinete ${year}: ${completed}/${deputies.length} páginas consultadas.`);
+      }
+      return null;
+    }
+  });
+
+  const data = results.filter(Boolean);
+  const filePath = path.join(outputDirectory, `verba-gabinete-${year}.json`);
+  await fs.writeFile(filePath, JSON.stringify({
+    metadata: {
+      generatedAt: new Date().toISOString(),
+      year,
+      sourcePattern: "https://www.camara.leg.br/deputados/{id}/verba-gabinete?ano={ano}",
+      deputyCount: deputies.length,
+      caseCount: data.length,
+      failureCount: failures.length,
+      failures: failures.slice(0, 100)
+    },
+    data
+  }, null, 2));
+  console.log(`Ano ${year}: ${data.length} parlamentar(es) com valores mensais; ${failures.length} falha(s) de conexão.`);
+  return { year, caseCount: data.length, failureCount: failures.length };
 }
 
 async function syncEmployeesSnapshot() {
-  const url =
-    "https://dadosabertos.camara.leg.br/arquivos/funcionarios/csv/funcionarios.csv";
-  const response = await fetchWithRetry(url);
+  const url = "https://dadosabertos.camara.leg.br/arquivos/funcionarios/csv/funcionarios.csv";
+  const response = await fetchWithRetry(url, {}, 3);
   const buffer = Buffer.from(await response.arrayBuffer());
   const date = new Date().toISOString().slice(0, 10);
-  const csvPath = path.join(outputDirectory, `funcionarios-${date}.csv`);
-  const metadataPath = path.join(
-    outputDirectory,
-    `funcionarios-${date}.metadata.json`
-  );
-
-  await fs.writeFile(csvPath, buffer);
+  await fs.writeFile(path.join(outputDirectory, `funcionarios-${date}.csv`), buffer);
   await fs.writeFile(
-    metadataPath,
-    JSON.stringify(
-      {
-        sourceUrl: url,
-        snapshotDate: date,
-        downloadedAt: new Date().toISOString(),
-        contentType: response.headers.get("content-type"),
-        byteLength: buffer.length,
-        sha256: sha256(buffer),
-        caveat:
-          "A fonte representa a posição do dia anterior e não reconstrói, sozinha, o histórico funcional."
-      },
-      null,
-      2
-    )
+    path.join(outputDirectory, `funcionarios-${date}.metadata.json`),
+    JSON.stringify({
+      sourceUrl: url,
+      snapshotDate: date,
+      downloadedAt: new Date().toISOString(),
+      contentType: response.headers.get("content-type"),
+      byteLength: buffer.length,
+      sha256: sha256(buffer),
+      caveat: "A fonte representa a posição do dia anterior e não reconstrói, sozinha, o histórico funcional."
+    }, null, 2)
   );
-
-  console.log(`Snapshot de funcionários salvo: ${date}`);
+  console.log(`Snapshot funcional salvo: ${date}`);
   return date;
 }
 
-await syncDeputyDirectory();
-
 const result = {
+  version: 2,
   generatedAt: new Date().toISOString(),
   years: [],
   snapshotDate: null
 };
 
+const deputies = await syncDeputyDirectory();
 if (!snapshotOnly) {
   for (const year of [...new Set(years)].sort()) {
-    result.years.push({ year, competences: await syncRemunerationYear(year) });
+    result.years.push(await syncOfficeBudgetYear(year, deputies));
   }
 }
 
@@ -512,17 +437,9 @@ try {
   result.snapshotDate = await syncEmployeesSnapshot();
 } catch (error) {
   result.snapshotError = errorDetails(error);
-  console.warn(
-    "Snapshot atual de funcionários indisponível. " +
-    "A carga histórica mensal continuará sem interromper o backfill: " +
-    result.snapshotError
-  );
+  console.warn(`Snapshot funcional indisponível: ${result.snapshotError}`);
   if (snapshotOnly) throw error;
 }
 
-await fs.writeFile(
-  path.join(outputDirectory, "ultima-coleta.json"),
-  JSON.stringify(result, null, 2)
-);
-
-console.log("Coleta de verba de gabinete concluída.");
+await fs.writeFile(path.join(outputDirectory, "ultima-coleta.json"), JSON.stringify(result, null, 2));
+console.log("Coleta direta da verba de gabinete concluída.");

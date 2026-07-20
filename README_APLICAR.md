@@ -1,36 +1,49 @@
-# Correção — conexão da Verba de Gabinete
+# Furo Público — Verba de Gabinete v2
 
-## Arquivo a substituir
+## Motivo da correção
 
-Substitua no repositório:
+A versão anterior baixava relatórios gerais de remuneração e tentava identificar
+o parlamentar pela lotação. A execução podia terminar sem erro, mas gerar zero
+casos quando a lotação não era associada ao deputado.
 
-`/scripts/camara/sync-verba-gabinete.mjs`
+A versão v2 usa diretamente, para cada deputado e ano:
 
-pelo arquivo presente neste pacote.
+https://www.camara.leg.br/deputados/{ID}/verba-gabinete?ano={ANO}
 
-## O que foi corrigido
+Essa página oficial fornece o valor disponível e o valor gasto em cada mês.
 
-1. O diretório de deputados tenta, nesta ordem:
-   - arquivo JSON oficial do Dados Abertos;
-   - API REST oficial da Câmara;
-   - página oficial "Quem são os deputados" da 57ª Legislatura;
-   - cópia local existente, quando disponível.
+## Arquivos a substituir
 
-2. As tentativas agora registram a causa interna da falha de rede.
+- scripts/camara/sync-verba-gabinete.mjs
+- scripts/camara/detectar-verba-gabinete.mjs
+- scripts/camara/importar-verba-gabinete.mjs
+- components/admin-office-budget.tsx
+- components/admin-parliamentary-modules.tsx
 
-3. Cada requisição possui tempo limite e repetição progressiva.
+Os demais arquivos não precisam ser alterados.
 
-4. Durante o `backfill`, a indisponibilidade momentânea do snapshot diário
-   de funcionários não interrompe a coleta histórica das folhas mensais.
+## Depois de enviar ao GitHub
 
-5. A execução `snapshot` continua falhando corretamente quando o arquivo
-   diário não pode ser obtido, evitando registrar um falso snapshot vazio.
+1. Faça commit na branch main.
+2. Aguarde o deploy da Vercel.
+3. Abra Actions.
+4. Abra “Monitoramento Verba de Gabinete — 57ª Legislatura”.
+5. Execute com o modo `backfill`.
+6. Confira no log:
+   - Casos de verba de gabinete: valor maior que zero
+   - Competências mensais aproveitadas: valor maior que zero
+   - Casos atualizados: valor maior que zero
+7. Abra o Furo Público e pressione Ctrl + F5.
 
-## Depois de substituir
+## Mudanças na tela
 
-1. Faça commit na branch `main`.
-2. Abra Actions.
-3. Abra "Monitoramento Verba de Gabinete — 57ª Legislatura".
-4. Execute novamente com `backfill`.
+A aba passa a mostrar:
 
-Não altere os segredos e não rode o workflow antigo da CEAP.
+- valor disponível por mês;
+- valor gasto por mês;
+- percentual utilizado;
+- variação mensal;
+- fonte oficial individual;
+- equipe atual, quando o snapshot funcional puder ser associado.
+
+Os valores permanecem separados da CEAP.

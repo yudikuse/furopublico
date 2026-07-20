@@ -15,7 +15,10 @@ type ModuleView = "overview" | "ceap" | "office" | "amendments";
 type OfficeBudgetSummary = {
   latestCompetence?: string | null;
   latestTotalPublished?: number;
-  latestStaffCount?: number;
+  latestTotalAvailable?: number;
+  latestUtilization?: number;
+  latestStaffCount?: number | null;
+  currentSnapshotStaffCount?: number | null;
   signalCount?: number;
   signalTypeCount?: number;
   priority?: "baixa" | "media" | "alta";
@@ -139,12 +142,12 @@ export function AdminParliamentaryModules({ alert }: Props) {
               </strong>
               <small>
                 {officeBudget?.summary?.signalCount ?? 0} sinal(is) ·{" "}
-                {officeBudget?.summary?.latestStaffCount ?? 0} integrante(s) ·{" "}
+                {officeBudget?.summary?.currentSnapshotStaffCount ?? "—"} integrante(s) no snapshot ·{" "}
                 {competenceLabel(officeBudget?.summary?.latestCompetence)}
               </small>
               <p>
-                Remuneração publicada, integrantes, lotações, variações mensais e
-                documentos de origem.
+                Valor disponível, valor gasto, variações mensais, equipe funcional atual
+                e documentos de origem mantidos separadamente.
               </p>
             </button>
 

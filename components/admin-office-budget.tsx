@@ -4,10 +4,7 @@ import { useMemo, useState } from "react";
 import type { InvestigationAlert } from "@/lib/types";
 import { formatCurrency, formatDate } from "@/lib/format";
 
-type Props = {
-  alert: InvestigationAlert;
-};
-
+type Props = { alert: InvestigationAlert };
 type Severity = "baixa" | "media" | "alta";
 
 type OfficeEmployee = {
@@ -17,24 +14,16 @@ type OfficeEmployee = {
   cargo?: string;
   function?: string;
   lotation?: string;
-  amount?: number;
-  latestAmount?: number;
-  maximumAmount?: number;
-  firstSeen?: string;
-  lastSeen?: string;
-  monthsPresent?: number;
   appointmentDate?: string;
 };
 
 type OfficeMonth = {
   competence: string;
+  totalAvailable?: number;
+  totalSpent?: number;
   totalPublished: number;
-  staffCount: number;
-  medianPublished: number;
-  largestPublished: number;
-  top3Total: number;
-  top3Share: number;
-  topEmployees?: OfficeEmployee[];
+  utilization?: number;
+  staffCount?: number | null;
   documentId?: string;
   sourceUrl?: string;
 };
@@ -72,18 +61,15 @@ type OfficeBudgetEvidence = {
     staffCount?: number;
     staff?: OfficeEmployee[];
   } | null;
-  snapshotHistory?: Array<{
-    date?: string;
-    sourceUrl?: string;
-    staffCount?: number;
-  }>;
   signals?: OfficeSignal[];
   documents?: OfficeDocument[];
   summary?: {
     monthCount?: number;
     latestCompetence?: string | null;
     latestTotalPublished?: number;
-    latestStaffCount?: number;
+    latestTotalAvailable?: number;
+    latestUtilization?: number;
+    latestStaffCount?: number | null;
     currentSnapshotStaffCount?: number | null;
     signalCount?: number;
     signalTypeCount?: number;
@@ -94,6 +80,7 @@ type OfficeBudgetEvidence = {
   dataQuality?: {
     exactDuplicatesRemoved?: number;
     unmappedRowCount?: number;
+    missingCompetences?: string[];
     salaryBasis?: string;
     snapshotCaveat?: string;
   };
@@ -124,10 +111,8 @@ function formatSignedCurrency(value?: number) {
 
 function signalTypeLabel(type: string) {
   const labels: Record<string, string> = {
-    "variacao-folha-publicada": "Variação da folha publicada",
-    "variacao-equipe": "Variação da equipe",
-    "concentracao-remuneracao": "Concentração da remuneração",
-    "lotacao-multipla-na-competencia": "Lotação múltipla na competência"
+    "variacao-gasto-gabinete": "Variação do gasto mensal",
+    "variacao-folha-publicada": "Variação da folha publicada"
   };
   return labels[type] ?? type.replaceAll("-", " ");
 }
@@ -147,66 +132,45 @@ export function AdminOfficeBudget({ alert }: Props) {
   );
   const signals = officeBudget?.signals ?? [];
   const documents = officeBudget?.documents ?? [];
-  const staffProfiles = officeBudget?.staffProfiles ?? [];
-  const latestMonth = months.at(-1) ?? null;
+  const currentStaff = officeBudget?.currentSnapshot?.staff ?? officeBudget?.staffProfiles ?? [];
 
   const monthRows = useMemo(
-    () =>
-      months.map((month, index) => {
-        const previous = index ? months[index - 1] : null;
-        return {
-          ...month,
-          change:
-            previous && previous.totalPublished
-              ? month.totalPublished - previous.totalPublished
-              : null,
-          changePercent:
-            previous && previous.totalPublished
-              ? (month.totalPublished - previous.totalPublished) /
-                previous.totalPublished
-              : null
-        };
-      }).reverse(),
+    () => months.map((month, index) => {
+      const previous = index ? months[index - 1] : null;
+      const spent = Number(month.totalSpent ?? month.totalPublished ?? 0);
+      const previousSpent = Number(previous?.totalSpent ?? previous?.totalPublished ?? 0);
+      return {
+        ...month,
+        spent,
+        available: Number(month.totalAvailable ?? 0),
+        useRate: Number(month.utilization ?? 0),
+        change: previous ? spent - previousSpent : null,
+        changePercent: previous && previousSpent ? (spent - previousSpent) / previousSpent : null
+      };
+    }).reverse(),
     [months]
   );
 
   const filteredStaff = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("pt-BR");
-    return staffProfiles
-      .filter((employee) => {
-        if (!query) return true;
-        return [
-          employee.name,
-          employee.point,
-          employee.cargo,
-          employee.function,
-          employee.lotation
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLocaleLowerCase("pt-BR")
-          .includes(query);
-      })
-      .sort(
-        (a, b) =>
-          String(b.lastSeen ?? "").localeCompare(String(a.lastSeen ?? "")) ||
-          Number(b.latestAmount ?? 0) - Number(a.latestAmount ?? 0)
-      );
-  }, [staffProfiles, search]);
+    return currentStaff.filter((employee) => {
+      if (!query) return true;
+      return [employee.name, employee.point, employee.cargo, employee.function, employee.lotation]
+        .filter(Boolean)
+        .join(" ")
+        .toLocaleLowerCase("pt-BR")
+        .includes(query);
+    }).sort((a, b) => String(a.name ?? "").localeCompare(String(b.name ?? ""), "pt-BR"));
+  }, [currentStaff, search]);
 
-  const filteredSignals = signals.filter(
-    (signal) => !severity || signal.severity === severity
-  );
+  const filteredSignals = signals.filter((signal) => !severity || signal.severity === severity);
 
   if (!officeBudget) {
     return (
       <section className="admin-panel office-budget-empty">
         <p className="eyebrow">VERBA DE GABINETE</p>
         <h2>Módulo ainda sem dados</h2>
-        <p>
-          Execute o monitoramento da verba de gabinete para importar os relatórios
-          mensais de remuneração e o snapshot de funcionários da Câmara.
-        </p>
+        <p>Execute o monitoramento para importar os valores mensais da página oficial da Câmara.</p>
       </section>
     );
   }
@@ -216,11 +180,10 @@ export function AdminOfficeBudget({ alert }: Props) {
       <div className="office-budget-heading">
         <div>
           <p className="eyebrow">MÓDULO · VERBA DE GABINETE</p>
-          <h2>Equipe e remuneração publicada</h2>
+          <h2>Gasto mensal e equipe atual</h2>
           <p>
-            Folhas mensais, integrantes, lotações e variações são mantidos separados
-            dos sinais técnicos. O módulo não conclui vínculo irregular, nepotismo ou
-            ausência de trabalho.
+            Os valores mensais vêm diretamente da página individual do parlamentar. A equipe é um
+            snapshot atual separado e não é usada para reconstruir retroativamente cada mês.
           </p>
         </div>
         <div className={`office-budget-priority severity-${officeBudget.summary?.priority ?? "baixa"}`}>
@@ -236,16 +199,20 @@ export function AdminOfficeBudget({ alert }: Props) {
           <strong>{officeBudget.summary?.monthCount ?? months.length}</strong>
         </article>
         <article>
-          <span>Última folha publicada</span>
+          <span>Último valor gasto</span>
           <strong>{formatCurrency(officeBudget.summary?.latestTotalPublished)}</strong>
           <small>{competenceLabel(officeBudget.summary?.latestCompetence ?? undefined)}</small>
         </article>
         <article>
-          <span>Integrantes na última folha</span>
-          <strong>{officeBudget.summary?.latestStaffCount ?? latestMonth?.staffCount ?? 0}</strong>
+          <span>Disponível no mês</span>
+          <strong>{formatCurrency(officeBudget.summary?.latestTotalAvailable)}</strong>
         </article>
         <article>
-          <span>Snapshot funcional atual</span>
+          <span>Uso do disponível</span>
+          <strong>{percent(officeBudget.summary?.latestUtilization)}</strong>
+        </article>
+        <article>
+          <span>Equipe no snapshot atual</span>
           <strong>{officeBudget.summary?.currentSnapshotStaffCount ?? "—"}</strong>
           <small>{formatDate(officeBudget.currentSnapshot?.date)}</small>
         </article>
@@ -253,24 +220,19 @@ export function AdminOfficeBudget({ alert }: Props) {
           <span>Sinais técnicos</span>
           <strong>{officeBudget.summary?.signalCount ?? signals.length}</strong>
         </article>
-        <article>
-          <span>Maior variação mensal</span>
-          <strong>{formatCurrency(officeBudget.summary?.largestMonthlyChange)}</strong>
-        </article>
       </div>
 
       <p className="admin-warning office-budget-warning">
-        Os relatórios de remuneração podem conter férias, gratificação natalina e
-        outras parcelas que não correspondem integralmente ao limite mensal da verba
-        de gabinete. Os valores abaixo são os valores publicados na fonte, não uma
-        conclusão sobre o custo regular do gabinete.
+        O histórico mensal contém valores agregados de disponibilidade e gasto. Ele não informa,
+        sozinho, quais pessoas receberam cada parcela nem comprova nomeação, exoneração, trabalho
+        prestado ou irregularidade.
       </p>
 
       <nav className="office-budget-tabs" aria-label="Visões da verba de gabinete">
         {[
           ["overview", "Visão geral"],
           ["months", `Evolução mensal (${months.length})`],
-          ["staff", `Equipe (${staffProfiles.length})`],
+          ["staff", `Equipe atual (${currentStaff.length})`],
           ["signals", `Sinais (${signals.length})`],
           ["sources", `Fontes (${documents.length})`]
         ].map(([value, label]) => (
@@ -290,16 +252,14 @@ export function AdminOfficeBudget({ alert }: Props) {
           <section>
             <div className="panel-heading">
               <h3>Últimas competências</h3>
-              <button type="button" className="text-button" onClick={() => setView("months")}>
-                Ver evolução completa →
-              </button>
+              <button type="button" className="text-button" onClick={() => setView("months")}>Ver evolução completa →</button>
             </div>
             <div className="office-budget-month-cards">
               {monthRows.slice(0, 6).map((month) => (
                 <article key={month.competence}>
                   <span>{competenceLabel(month.competence)}</span>
-                  <strong>{formatCurrency(month.totalPublished)}</strong>
-                  <small>{month.staffCount} integrante(s)</small>
+                  <strong>{formatCurrency(month.spent)}</strong>
+                  <small>Disponível: {formatCurrency(month.available)} · uso {percent(month.useRate)}</small>
                   {month.change !== null ? (
                     <b className={month.change >= 0 ? "positive" : "negative"}>
                       {formatSignedCurrency(month.change)} · {percent(month.changePercent ?? 0)}
@@ -313,9 +273,7 @@ export function AdminOfficeBudget({ alert }: Props) {
           <section>
             <div className="panel-heading">
               <h3>Sinais do módulo</h3>
-              <button type="button" className="text-button" onClick={() => setView("signals")}>
-                Ver todos →
-              </button>
+              <button type="button" className="text-button" onClick={() => setView("signals")}>Ver todos →</button>
             </div>
             <div className="office-budget-signal-cards">
               {signals.slice(0, 6).map((signal) => (
@@ -329,7 +287,7 @@ export function AdminOfficeBudget({ alert }: Props) {
               {!signals.length ? (
                 <div className="empty-state">
                   <h3>Nenhum sinal técnico nesta série</h3>
-                  <p>A ausência de sinal não comprova regularidade; apenas indica que as regras atuais não foram acionadas.</p>
+                  <p>A ausência de sinal indica apenas que as regras atuais não foram acionadas.</p>
                 </div>
               ) : null}
             </div>
@@ -337,10 +295,8 @@ export function AdminOfficeBudget({ alert }: Props) {
 
           <section>
             <div className="panel-heading">
-              <h3>Snapshot funcional mais recente</h3>
-              <button type="button" className="text-button" onClick={() => setView("staff")}>
-                Ver equipe →
-              </button>
+              <h3>Equipe funcional atual</h3>
+              <button type="button" className="text-button" onClick={() => setView("staff")}>Ver equipe →</button>
             </div>
             <p>
               {officeBudget.currentSnapshot
@@ -357,12 +313,10 @@ export function AdminOfficeBudget({ alert }: Props) {
             <thead>
               <tr>
                 <th>Competência</th>
-                <th>Valor publicado</th>
-                <th>Variação</th>
-                <th>Integrantes</th>
-                <th>Mediana</th>
-                <th>Maior valor</th>
-                <th>Top 3</th>
+                <th>Disponível</th>
+                <th>Gasto</th>
+                <th>Uso</th>
+                <th>Variação do gasto</th>
                 <th>Fonte</th>
               </tr>
             </thead>
@@ -370,23 +324,18 @@ export function AdminOfficeBudget({ alert }: Props) {
               {monthRows.map((month) => (
                 <tr key={month.competence}>
                   <td><strong>{competenceLabel(month.competence)}</strong></td>
-                  <td>{formatCurrency(month.totalPublished)}</td>
+                  <td>{formatCurrency(month.available)}</td>
+                  <td>{formatCurrency(month.spent)}</td>
+                  <td>{percent(month.useRate)}</td>
                   <td>
                     {month.change === null ? "—" : (
-                      <>
-                        {formatSignedCurrency(month.change)}
-                        <small>{percent(month.changePercent ?? 0)}</small>
-                      </>
+                      <>{formatSignedCurrency(month.change)}<small>{percent(month.changePercent ?? 0)}</small></>
                     )}
                   </td>
-                  <td>{month.staffCount}</td>
-                  <td>{formatCurrency(month.medianPublished)}</td>
-                  <td>{formatCurrency(month.largestPublished)}</td>
-                  <td>{formatCurrency(month.top3Total)}<small>{percent(month.top3Share)}</small></td>
                   <td>
-                    {month.sourceUrl ? (
-                      <a href={month.sourceUrl} target="_blank" rel="noreferrer">Abrir CSV ↗</a>
-                    ) : "Sem link"}
+                    {month.sourceUrl
+                      ? <a href={month.sourceUrl} target="_blank" rel="noreferrer">Abrir página oficial ↗</a>
+                      : "Sem link"}
                   </td>
                 </tr>
               ))}
@@ -407,71 +356,37 @@ export function AdminOfficeBudget({ alert }: Props) {
                 placeholder="Nome, ponto, cargo, função ou lotação"
               />
             </label>
-            <span>{filteredStaff.length} integrante(s) no histórico disponível</span>
+            <span>{filteredStaff.length} integrante(s) no snapshot atual</span>
           </div>
           <div className="responsive-table">
             <table className="admin-table office-budget-table">
               <thead>
                 <tr>
-                  <th>Integrante</th>
+                  <th>Nome</th>
+                  <th>Ponto</th>
                   <th>Cargo/função</th>
-                  <th>Primeira competência</th>
-                  <th>Última competência</th>
-                  <th>Meses presentes</th>
-                  <th>Último valor</th>
-                  <th>Maior valor</th>
+                  <th>Nomeação informada</th>
+                  <th>Lotação</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredStaff.map((employee) => (
                   <tr key={employee.key ?? employee.point ?? employee.name}>
-                    <td>
-                      <strong>{employee.name ?? "Não identificado"}</strong>
-                      <small>Ponto: {employee.point || "não informado"}</small>
-                    </td>
-                    <td>
-                      {employee.cargo || employee.function || "—"}
-                      <small>{employee.lotation || ""}</small>
-                    </td>
-                    <td>{competenceLabel(employee.firstSeen)}</td>
-                    <td>{competenceLabel(employee.lastSeen)}</td>
-                    <td>{employee.monthsPresent ?? 0}</td>
-                    <td>{formatCurrency(employee.latestAmount)}</td>
-                    <td>{formatCurrency(employee.maximumAmount)}</td>
+                    <td><strong>{employee.name ?? "Não identificado"}</strong></td>
+                    <td>{employee.point || "—"}</td>
+                    <td>{employee.cargo || employee.function || "—"}</td>
+                    <td>{formatDate(employee.appointmentDate)}</td>
+                    <td>{employee.lotation || "—"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-
-          {officeBudget.currentSnapshot?.staff?.length ? (
-            <details className="office-budget-current-snapshot">
-              <summary>Ver nomes do snapshot funcional atual</summary>
-              <div className="responsive-table">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>Nome</th>
-                      <th>Ponto</th>
-                      <th>Cargo/função</th>
-                      <th>Nomeação informada</th>
-                      <th>Lotação</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {officeBudget.currentSnapshot.staff.map((employee) => (
-                      <tr key={employee.point ?? employee.name}>
-                        <td>{employee.name ?? "—"}</td>
-                        <td>{employee.point ?? "—"}</td>
-                        <td>{employee.cargo || employee.function || "—"}</td>
-                        <td>{formatDate(employee.appointmentDate)}</td>
-                        <td>{employee.lotation ?? "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </details>
+          {!filteredStaff.length ? (
+            <div className="empty-state">
+              <h3>Snapshot funcional indisponível ou sem correspondência</h3>
+              <p>Os valores mensais continuam válidos e permanecem separados da lista atual de integrantes.</p>
+            </div>
           ) : null}
         </div>
       ) : null}
@@ -499,10 +414,7 @@ export function AdminOfficeBudget({ alert }: Props) {
                 </div>
                 <strong>{competenceLabel(signal.competence)}</strong>
                 <p>{signal.detail}</p>
-                <small>
-                  O sinal organiza uma variação da fonte. Ele não comprova nomeação,
-                  exoneração, acumulação ou ausência de trabalho.
-                </small>
+                <small>O sinal registra uma variação da fonte e não comprova irregularidade.</small>
               </article>
             ))}
           </div>
@@ -514,15 +426,13 @@ export function AdminOfficeBudget({ alert }: Props) {
           {documents.map((document) => (
             <article key={document.id}>
               <div>
-                <span>{document.type === "snapshot-funcionarios" ? "Snapshot funcional" : "Folha mensal"}</span>
-                <strong>{competenceLabel(document.competence)}</strong>
+                <span>{document.type === "snapshot-funcionarios" ? "Snapshot funcional" : "Página mensal consolidada"}</span>
+                <strong>{document.competence ?? "—"}</strong>
                 <p>{document.description}</p>
-                <small>{document.acceptedRows ?? 0} registro(s) relacionado(s) ao caso</small>
+                <small>{document.acceptedRows ?? 0} competência(s) ou registro(s) relacionados</small>
               </div>
               {document.sourceUrl ? (
-                <a className="button button-secondary" href={document.sourceUrl} target="_blank" rel="noreferrer">
-                  Abrir fonte ↗
-                </a>
+                <a className="button button-secondary" href={document.sourceUrl} target="_blank" rel="noreferrer">Abrir fonte ↗</a>
               ) : null}
             </article>
           ))}
@@ -531,11 +441,10 @@ export function AdminOfficeBudget({ alert }: Props) {
             <h3>Limites da fonte</h3>
             <p>{officeBudget.dataQuality?.salaryBasis}</p>
             <p>{officeBudget.dataQuality?.snapshotCaveat}</p>
+            {officeBudget.dataQuality?.missingCompetences?.length ? (
+              <p>Intervalos sem competência localizada: {officeBudget.dataQuality.missingCompetences.join(", ")}.</p>
+            ) : null}
             <p>{officeBudget.disclaimer}</p>
-            <small>
-              Repetições exatas removidas: {officeBudget.dataQuality?.exactDuplicatesRemoved ?? 0} ·
-              Linhas sem parlamentar identificado: {officeBudget.dataQuality?.unmappedRowCount ?? 0}
-            </small>
           </div>
         </div>
       ) : null}
