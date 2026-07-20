@@ -1,0 +1,18 @@
+Furo Público — validação da rede automática CEAP
+
+Arquivos verificados:
+- lib/entity-network.ts
+- components/admin-entity-network.tsx
+- app/api/admin/alerts/[id]/entity-network/route.ts
+- app/entity-network.css
+
+Validações:
+- TypeScript/TSX: aprovado em compilação estrita com stubs dos tipos do projeto.
+- O fornecedor resumido como "1 fornecedor(es)" não é criado como entidade.
+- Os fornecedores são lidos de evidence.suppliers.
+- Os documentos são lidos de evidence.documents.
+- Linhas CEAP exatamente repetidas são removidas antes do histórico financeiro.
+- O recálculo automático ocorre uma vez por caso em cada sessão do navegador.
+- O formulário manual permanece disponível somente para partes adicionais documentadas.
+- Nenhum SQL é necessário.
+- Não é necessário executar o GitHub Action da Câmara.
