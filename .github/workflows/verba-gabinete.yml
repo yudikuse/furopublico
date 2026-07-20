@@ -1,0 +1,91 @@
+name: Monitoramento Verba de Gabinete — 57ª Legislatura
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Tipo de execução"
+        required: true
+        default: "backfill"
+        type: choice
+        options:
+          - backfill
+          - current
+          - snapshot
+  schedule:
+    - cron: "20 7 * * *"
+    - cron: "50 7 15 * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: monitoramento-verba-gabinete
+  cancel-in-progress: false
+
+jobs:
+  office-budget:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Definir modo da execução
+        id: mode
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "value=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "20 7 * * *" ]; then
+            echo "value=snapshot" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=current" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Coletar histórico da 57ª Legislatura
+        if: steps.mode.outputs.value == 'backfill'
+        run: node scripts/camara/sync-verba-gabinete.mjs --years=2023,2024,2025,2026
+
+      - name: Coletar ano corrente e anterior
+        if: steps.mode.outputs.value == 'current'
+        shell: bash
+        run: |
+          CURRENT_YEAR=$(date -u +%Y)
+          PREVIOUS_YEAR=$((CURRENT_YEAR - 1))
+          node scripts/camara/sync-verba-gabinete.mjs --years=${PREVIOUS_YEAR},${CURRENT_YEAR}
+
+      - name: Coletar snapshot diário
+        if: steps.mode.outputs.value == 'snapshot'
+        run: node scripts/camara/sync-verba-gabinete.mjs --snapshot-only
+
+      - name: Detectar sinais e organizar documentos
+        shell: bash
+        run: |
+          if [ "${{ steps.mode.outputs.value }}" = "snapshot" ]; then
+            node scripts/camara/detectar-verba-gabinete.mjs --snapshot-only
+          else
+            node scripts/camara/detectar-verba-gabinete.mjs
+          fi
+
+      - name: Importar no caso parlamentar
+        run: node scripts/camara/importar-verba-gabinete.mjs
+
+      - name: Resumo da execução
+        if: always()
+        run: |
+          echo "Modo: ${{ steps.mode.outputs.value }}"
+          echo "A verba de gabinete foi mantida separada da CEAP."
