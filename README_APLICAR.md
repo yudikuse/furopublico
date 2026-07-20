@@ -1,75 +1,75 @@
-# Verba de Gabinete v3 — transporte pela Vercel
+# Furo Público — Verba de Gabinete v4
 
-## Por que esta versão existe
+Esta versão conclui o módulo de verba de gabinete com:
 
-Os logs comprovaram `UND_ERR_CONNECT_TIMEOUT` entre os runners hospedados do
-GitHub Actions e todos os domínios oficiais da Câmara. O código não recebeu
-resposta HTTP: a conexão com o IP da Câmara expirou.
+- snapshot atual da equipe;
+- associação por número do gabinete, nome direto ou aproximação segura;
+- distinção entre “equipe vazia” e “snapshot não associado”;
+- histórico de snapshots;
+- entradas e saídas observadas entre snapshots;
+- gasto acumulado;
+- disponível acumulado;
+- não utilizado acumulado;
+- uso acumulado;
+- média, mediana, maior e menor competência;
+- faixas descritivas de utilização, variação, tendência e tamanho da equipe;
+- filtros mensais, de equipe e de sinais;
+- filtros da fila por verba acumulada, uso e situação do snapshot;
+- ordenação por verba acumulada, uso e equipe.
 
-A v3 mantém o GitHub como orquestrador, mas, quando o acesso direto falha,
-encaminha a consulta por uma rota protegida na Vercel.
-
-A fonte registrada continua sendo a URL oficial da Câmara.
-
-## Arquivos
-
-Substitua:
+## Arquivos a substituir
 
 - `scripts/camara/sync-verba-gabinete.mjs`
+- `scripts/camara/detectar-verba-gabinete.mjs`
+- `scripts/camara/importar-verba-gabinete.mjs`
+- `components/admin-office-budget.tsx`
+- `components/admin-parliamentary-modules.tsx`
+- `components/admin-parliamentary-queue.tsx`
+- `app/office-budget.css`
 - `.github/workflows/verba-gabinete.yml`
 
-Adicione:
+Nenhum SQL é necessário. As informações continuam armazenadas dentro de
+`evidence.officeBudget`, preservando CEAP, rede e notas editoriais.
 
-- `app/api/admin/camara-fetch/route.ts`
+## Ordem de execução
 
-## Configuração obrigatória
+Depois do commit e do deploy:
 
-Crie uma sequência longa e aleatória, sem espaços. Use exatamente o mesmo valor
-nos dois locais abaixo. Não envie esse valor no chat.
+1. Execute `current`.
+   - Atualiza 2025 e 2026.
+   - Registra o número do gabinete encontrado na página individual.
+   - Baixa e associa o snapshot funcional.
 
-### Vercel
+2. Confira no log:
 
-Settings → Environment Variables
+```text
+Snapshot AAAA-MM-DD: ... secretário(s) detectado(s), ... associado(s).
+Associações por método: ...
+Secretários associados: .../...
+```
 
-- Nome: `OFFICE_BUDGET_SYNC_TOKEN`
-- Valor: sua sequência aleatória
-- Ambientes: Production e Preview
-- Sensitive: ativado
+3. Atualize o Furo Público com `Ctrl + F5`.
 
-Faça um novo deploy depois de salvar.
+4. Depois execute `snapshot` em outro dia para formar a primeira comparação
+   entre duas datas. Entradas e saídas só podem ser calculadas quando existem
+   pelo menos dois snapshots associados.
 
-### GitHub
+O workflow continuará:
 
-Settings → Secrets and variables → Actions → New repository secret
+- snapshot diário;
+- atualização financeira mensal;
+- backfill apenas quando for necessário reconstruir o histórico.
 
-1. `OFFICE_BUDGET_SYNC_TOKEN`
-   - mesmo valor salvo na Vercel
+## Interpretação editorial
 
-2. `CAMARA_PROXY_URL`
-   - `https://furopublico.vercel.app/api/admin/camara-fetch`
+As classificações são descritivas:
 
-## Execução
+- utilização alta não significa gasto irregular;
+- equipe ampla não significa excesso;
+- variação de equipe não comprova contratação indevida;
+- snapshot não associado não significa ausência de funcionários;
+- nomes e movimentos devem ser confirmados na fonte e em atos administrativos
+  antes de publicação.
 
-Depois do deploy e dos segredos:
-
-Actions → Monitoramento Verba de Gabinete → Run workflow → `backfill`
-
-O log correto começa usando os parlamentares que já estão nos casos do
-Furo Público, evitando baixar novamente o diretório geral.
-
-Procure:
-
-- `Parlamentares selecionados para a verba de gabinete: ...`
-- `Acesso direto indisponível; usando transporte Vercel...`
-- `Ano 2026: ... parlamentar(es) com valores mensais`
-- `Casos atualizados: ...`
-
-## Segurança
-
-A rota:
-
-- exige token;
-- aceita somente domínios oficiais da Câmara;
-- não funciona como proxy genérico;
-- não armazena o token;
-- não muda a URL de origem gravada nos documentos.
+A fonte de funcionários representa somente a posição do dia anterior e não
+reconstrói retroativamente o quadro funcional.

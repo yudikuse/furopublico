@@ -62,7 +62,7 @@ async function fetchDirect(url, options = {}) {
       redirect: "follow",
       signal: fetchOptions.signal ?? controller.signal,
       headers: {
-        "user-agent": "FuroPublico/3.0 (+monitoramento jornalistico; fonte oficial)",
+        "user-agent": "FuroPublico/4.0 (+monitoramento jornalistico; fonte oficial)",
         accept: "text/html,application/json,text/csv,application/octet-stream,*/*",
         ...suppliedHeaders
       }
@@ -219,6 +219,21 @@ function extractOfficeBudgetMonths(html) {
   return [...months.values()].sort((a, b) => a.month - b.month);
 }
 
+
+function extractOfficeNumber(value) {
+  const text = cleanText(value);
+  const patterns = [
+    /\bgabinete\s*(?:n[ºo°.]?\s*)?(\d{1,4})\b/i,
+    /\bgab\.?\s*(\d{1,4})\b/i,
+    /\banexo\s+[ivx]+\s*[-–—]\s*(?:gabinete\s*)?(\d{1,4})\b/i
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) return String(Number(match[1]));
+  }
+  return null;
+}
+
 function normalizeDeputyRows(payload) {
   const rows = Array.isArray(payload?.dados)
     ? payload.dados
@@ -239,6 +254,7 @@ function normalizeDeputyRows(payload) {
         id,
         nome: row?.nome ?? name,
         nomeEleitoral: row?.nomeEleitoral ?? name,
+        officeNumber: row?.officeNumber ?? row?.gabinete ?? null,
         ultimoStatus: {
           ...status,
           id: status?.id ?? id,
@@ -285,10 +301,23 @@ async function fetchDeputiesFromSupabaseCases() {
     const name = cleanText(row?.deputy_name ?? evidence?.deputyName ?? "");
     if (!id || !name) continue;
 
+    const officeBudget =
+      evidence?.officeBudget && typeof evidence.officeBudget === "object"
+        ? evidence.officeBudget
+        : {};
+    const profile =
+      officeBudget?.profile && typeof officeBudget.profile === "object"
+        ? officeBudget.profile
+        : {};
+    const officeNumber = String(
+      profile?.officeNumber ?? officeBudget?.officeNumber ?? ""
+    ).trim();
+
     deputies.set(id, {
       id,
       nome: name,
       nomeEleitoral: name,
+      officeNumber: officeNumber || null,
       ultimoStatus: { id, nome: name, nomeEleitoral: name }
     });
   }
@@ -495,6 +524,7 @@ async function syncOfficeBudgetYear(year, deputies) {
         sourceUrl,
         fetchedAt: new Date().toISOString(),
         checksum: sha256(Buffer.from(html)),
+        officeNumber: extractOfficeNumber(html) ?? deputy?.officeNumber ?? null,
         months
       };
     } catch (error) {
@@ -548,7 +578,7 @@ async function syncEmployeesSnapshot() {
 }
 
 const result = {
-  version: 3,
+  version: 4,
   generatedAt: new Date().toISOString(),
   years: [],
   snapshotDate: null
@@ -570,4 +600,4 @@ try {
 }
 
 await fs.writeFile(path.join(outputDirectory, "ultima-coleta.json"), JSON.stringify(result, null, 2));
-console.log("Coleta direta da verba de gabinete concluída.");
+console.log("Coleta da verba de gabinete e do snapshot funcional concluída.");

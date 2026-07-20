@@ -17,11 +17,20 @@ type OfficeBudgetSummary = {
   latestTotalPublished?: number;
   latestTotalAvailable?: number;
   latestUtilization?: number;
-  latestStaffCount?: number | null;
+  accumulatedSpent?: number;
+  accumulatedAvailable?: number;
+  accumulatedUtilization?: number;
   currentSnapshotStaffCount?: number | null;
+  currentSnapshotStatus?: string;
   signalCount?: number;
   signalTypeCount?: number;
   priority?: "baixa" | "media" | "alta";
+  classification?: {
+    utilization?: string;
+    variation?: string;
+    trend?: string;
+    teamSize?: string;
+  };
 };
 
 function competenceLabel(value?: string | null) {
@@ -32,6 +41,17 @@ function competenceLabel(value?: string | null) {
     year: "numeric",
     timeZone: "UTC"
   }).format(new Date(Date.UTC(year, month - 1, 1)));
+}
+
+function usageLabel(value?: string) {
+  const labels: Record<string, string> = {
+    "quase-integral": "uso quase integral",
+    alta: "utilização alta",
+    intermediaria: "utilização intermediária",
+    baixa: "utilização baixa",
+    "sem-dados": "sem classificação"
+  };
+  return labels[value ?? ""] ?? value?.replaceAll("-", " ") ?? "sem classificação";
 }
 
 export function AdminParliamentaryModules({ alert }: Props) {
@@ -54,12 +74,17 @@ export function AdminParliamentaryModules({ alert }: Props) {
   );
 
   const availableModules = useMemo(
-    () => [
-      hasCeap ? "CEAP" : null,
-      hasOffice ? "Verba de gabinete" : null
-    ].filter(Boolean),
+    () =>
+      [hasCeap ? "CEAP" : null, hasOffice ? "Verba de gabinete" : null].filter(
+        Boolean
+      ),
     [hasCeap, hasOffice]
   );
+
+  const staffLabel =
+    officeBudget?.summary?.currentSnapshotStatus === "associado"
+      ? `${officeBudget.summary.currentSnapshotStaffCount ?? 0} integrante(s)`
+      : "equipe não associada";
 
   return (
     <div className="parliamentary-modules">
@@ -68,8 +93,9 @@ export function AdminParliamentaryModules({ alert }: Props) {
           <p className="eyebrow">CASO PARLAMENTAR · MÓDULOS</p>
           <h2>{availableModules.length} módulo(s) com dados</h2>
           <p>
-            Cada módulo mantém seus documentos, valores e sinais separados. A
-            investigação continua sendo uma decisão editorial do jornalista.
+            Cada módulo mantém seus documentos, valores, classificações e sinais
+            separados. A investigação continua sendo uma decisão editorial do
+            jornalista.
           </p>
         </div>
 
@@ -121,7 +147,8 @@ export function AdminParliamentaryModules({ alert }: Props) {
               <span>CEAP</span>
               <strong>{hasCeap ? formatCurrency(ceapAmount) : "Sem dados"}</strong>
               <small>
-                {ceapSignals} sinal(is) · {ceapRules} tipo(s) · {ceapDocuments} documento(s)
+                {ceapSignals} sinal(is) · {ceapRules} tipo(s) · {ceapDocuments}{" "}
+                documento(s)
               </small>
               <p>
                 Notas fiscais, lançamentos, fornecedores e sinais de despesas do
@@ -137,17 +164,19 @@ export function AdminParliamentaryModules({ alert }: Props) {
               <span>Verba de gabinete</span>
               <strong>
                 {hasOffice
-                  ? formatCurrency(officeBudget?.summary?.latestTotalPublished)
+                  ? formatCurrency(officeBudget?.summary?.accumulatedSpent)
                   : "Sem dados"}
               </strong>
               <small>
-                {officeBudget?.summary?.signalCount ?? 0} sinal(is) ·{" "}
-                {officeBudget?.summary?.currentSnapshotStaffCount ?? "—"} integrante(s) no snapshot ·{" "}
-                {competenceLabel(officeBudget?.summary?.latestCompetence)}
+                Acumulado ·{" "}
+                {usageLabel(
+                  officeBudget?.summary?.classification?.utilization
+                )}{" "}
+                · {staffLabel}
               </small>
               <p>
-                Valor disponível, valor gasto, variações mensais, equipe funcional atual
-                e documentos de origem mantidos separadamente.
+                Valores acumulados e mensais, faixas descritivas, equipe atual,
+                movimentos entre snapshots e documentos de origem.
               </p>
             </button>
 
@@ -156,8 +185,8 @@ export function AdminParliamentaryModules({ alert }: Props) {
               <strong>Próximo módulo</strong>
               <small>Sem coleta implantada</small>
               <p>
-                Emenda, favorecido, município, instrumento, contrato e empresa serão
-                mantidos como entidades separadas.
+                Emenda, favorecido, município, instrumento, contrato e empresa
+                serão mantidos como entidades separadas.
               </p>
             </button>
           </div>
@@ -181,8 +210,8 @@ export function AdminParliamentaryModules({ alert }: Props) {
           <p className="eyebrow">MÓDULO FUTURO</p>
           <h2>Emendas parlamentares</h2>
           <p>
-            Este módulo será implantado depois da validação da verba de gabinete. Ele
-            não reutilizará valores ou sinais da CEAP e da folha.
+            Este módulo será implantado depois da validação da verba de gabinete.
+            Ele não reutilizará valores ou sinais da CEAP e da folha.
           </p>
         </section>
       ) : null}

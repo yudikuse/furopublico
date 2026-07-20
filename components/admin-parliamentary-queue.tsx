@@ -12,10 +12,20 @@ type Props = {
 type OfficeSummary = {
   latestCompetence?: string | null;
   latestTotalPublished?: number;
-  latestStaffCount?: number;
+  accumulatedSpent?: number;
+  accumulatedAvailable?: number;
+  accumulatedUtilization?: number;
+  currentSnapshotStaffCount?: number | null;
+  currentSnapshotStatus?: string;
   signalCount?: number;
   signalTypeCount?: number;
   highPriorityCount?: number;
+  classification?: {
+    utilization?: string;
+    variation?: string;
+    trend?: string;
+    teamSize?: string;
+  };
 };
 
 type ParliamentarySummary = {
@@ -38,6 +48,10 @@ function normalized(value: string) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
+}
+
+function percent(value?: number) {
+  return `${((Number(value) || 0) * 100).toFixed(1).replace(".", ",")}%`;
 }
 
 function competenceLabel(value?: string | null) {
@@ -101,6 +115,9 @@ export function AdminParliamentaryQueue({ alerts }: Props) {
   const [year, setYear] = useState("");
   const [module, setModule] = useState("");
   const [minimum, setMinimum] = useState("0");
+  const [officeMinimum, setOfficeMinimum] = useState("0");
+  const [officeUse, setOfficeUse] = useState("");
+  const [team, setTeam] = useState("");
   const [sort, setSort] = useState("priority");
 
   const deputies = useMemo(
@@ -122,6 +139,7 @@ export function AdminParliamentaryQueue({ alerts }: Props) {
   const filtered = useMemo(() => {
     const query = normalized(search.trim());
     const minimumNumber = Number(minimum) || 0;
+    const officeMinimumNumber = Number(officeMinimum) || 0;
 
     return rows
       .filter((row) => {
@@ -137,6 +155,21 @@ export function AdminParliamentaryQueue({ alerts }: Props) {
           (module === "office" && row.hasOffice) ||
           (module === "both" && row.hasCeap && row.hasOffice);
 
+        const use = Number(row.officeSummary?.accumulatedUtilization ?? 0);
+        const matchesUse =
+          !officeUse ||
+          (officeUse === "95" && use >= 0.95) ||
+          (officeUse === "85" && use >= 0.85 && use < 0.95) ||
+          (officeUse === "below85" && use < 0.85);
+
+        const teamStatus = row.officeSummary?.currentSnapshotStatus;
+        const matchesTeam =
+          !team ||
+          (team === "associated" && teamStatus === "associado") ||
+          (team === "unmapped" && row.hasOffice && teamStatus !== "associado") ||
+          (team === "18plus" &&
+            Number(row.officeSummary?.currentSnapshotStaffCount ?? 0) >= 18);
+
         return (
           (!query || haystack.includes(query)) &&
           (!deputy || alert.deputyName === deputy) &&
@@ -144,15 +177,30 @@ export function AdminParliamentaryQueue({ alerts }: Props) {
           (!status || alert.status === status) &&
           (!year || String(row.year ?? "") === year) &&
           matchesModule &&
-          row.financialAmount >= minimumNumber
+          matchesUse &&
+          matchesTeam &&
+          row.financialAmount >= minimumNumber &&
+          Number(row.officeSummary?.accumulatedSpent ?? 0) >= officeMinimumNumber
         );
       })
       .sort((a, b) => {
         if (sort === "amount") return b.financialAmount - a.financialAmount;
-        if (sort === "office") {
+        if (sort === "officeAccumulated") {
           return (
-            Number(b.officeSummary?.latestTotalPublished ?? 0) -
-            Number(a.officeSummary?.latestTotalPublished ?? 0)
+            Number(b.officeSummary?.accumulatedSpent ?? 0) -
+            Number(a.officeSummary?.accumulatedSpent ?? 0)
+          );
+        }
+        if (sort === "officeUse") {
+          return (
+            Number(b.officeSummary?.accumulatedUtilization ?? 0) -
+            Number(a.officeSummary?.accumulatedUtilization ?? 0)
+          );
+        }
+        if (sort === "staff") {
+          return (
+            Number(b.officeSummary?.currentSnapshotStaffCount ?? -1) -
+            Number(a.officeSummary?.currentSnapshotStaffCount ?? -1)
           );
         }
         if (sort === "signals") return b.signalCount - a.signalCount;
@@ -181,6 +229,9 @@ export function AdminParliamentaryQueue({ alerts }: Props) {
     year,
     module,
     minimum,
+    officeMinimum,
+    officeUse,
+    team,
     sort
   ]);
 
@@ -192,6 +243,9 @@ export function AdminParliamentaryQueue({ alerts }: Props) {
     setYear("");
     setModule("");
     setMinimum("0");
+    setOfficeMinimum("0");
+    setOfficeUse("");
+    setTeam("");
     setSort("priority");
   }
 
@@ -207,7 +261,7 @@ export function AdminParliamentaryQueue({ alerts }: Props) {
         </button>
       </div>
 
-      <div className="alerts-filter-grid parliamentary-queue-filters office-queue-filters">
+      <div className="alerts-filter-grid parliamentary-queue-filters office-queue-filters office-queue-filters-expanded">
         <label className="alerts-search-field">
           Buscar
           <input
@@ -222,7 +276,9 @@ export function AdminParliamentaryQueue({ alerts }: Props) {
           <select value={deputy} onChange={(event) => setDeputy(event.target.value)}>
             <option value="">Todos</option>
             {deputies.map((name) => (
-              <option key={name} value={name}>{name}</option>
+              <option key={name} value={name}>
+                {name}
+              </option>
             ))}
           </select>
         </label>
@@ -232,7 +288,9 @@ export function AdminParliamentaryQueue({ alerts }: Props) {
           <select value={year} onChange={(event) => setYear(event.target.value)}>
             <option value="">Todos</option>
             {years.map((item) => (
-              <option key={item} value={item}>{item}</option>
+              <option key={item} value={item}>
+                {item}
+              </option>
             ))}
           </select>
         </label>
@@ -249,7 +307,10 @@ export function AdminParliamentaryQueue({ alerts }: Props) {
 
         <label>
           Prioridade de apuração
-          <select value={severity} onChange={(event) => setSeverity(event.target.value)}>
+          <select
+            value={severity}
+            onChange={(event) => setSeverity(event.target.value)}
+          >
             <option value="">Todas</option>
             <option value="alta">Alta</option>
             <option value="media">Média</option>
@@ -281,13 +342,52 @@ export function AdminParliamentaryQueue({ alerts }: Props) {
         </label>
 
         <label>
+          Verba acumulada mínima
+          <select
+            value={officeMinimum}
+            onChange={(event) => setOfficeMinimum(event.target.value)}
+          >
+            <option value="0">Qualquer valor</option>
+            <option value="250000">R$ 250 mil</option>
+            <option value="500000">R$ 500 mil</option>
+            <option value="750000">R$ 750 mil</option>
+            <option value="1000000">R$ 1 milhão</option>
+          </select>
+        </label>
+
+        <label>
+          Uso acumulado
+          <select
+            value={officeUse}
+            onChange={(event) => setOfficeUse(event.target.value)}
+          >
+            <option value="">Todas as faixas</option>
+            <option value="95">95% ou mais</option>
+            <option value="85">85% a 94,9%</option>
+            <option value="below85">Abaixo de 85%</option>
+          </select>
+        </label>
+
+        <label>
+          Equipe
+          <select value={team} onChange={(event) => setTeam(event.target.value)}>
+            <option value="">Todas</option>
+            <option value="associated">Snapshot associado</option>
+            <option value="unmapped">Snapshot não associado</option>
+            <option value="18plus">18 ou mais integrantes</option>
+          </select>
+        </label>
+
+        <label>
           Ordenar
           <select value={sort} onChange={(event) => setSort(event.target.value)}>
             <option value="priority">Maior prioridade</option>
             <option value="signals">Mais sinais</option>
             <option value="modules">Mais módulos</option>
             <option value="amount">Maior valor CEAP</option>
-            <option value="office">Maior folha publicada</option>
+            <option value="officeAccumulated">Maior verba acumulada</option>
+            <option value="officeUse">Maior uso acumulado</option>
+            <option value="staff">Maior equipe associada</option>
             <option value="name">Nome A–Z</option>
           </select>
         </label>
@@ -296,11 +396,13 @@ export function AdminParliamentaryQueue({ alerts }: Props) {
       <div className="parliamentary-queue-list">
         {filtered.map((row) => {
           const alert = row.alert;
+          const teamAssociated =
+            row.officeSummary?.currentSnapshotStatus === "associado";
           return (
             <Link
               key={alert.id}
               href={`/admin/alertas/${alert.id}`}
-              className="parliamentary-queue-card office-enabled-queue-card"
+              className="parliamentary-queue-card office-enabled-queue-card office-enabled-queue-card-expanded"
             >
               <div className="parliamentary-queue-identity">
                 <span>Parlamentar</span>
@@ -316,11 +418,6 @@ export function AdminParliamentaryQueue({ alerts }: Props) {
               </div>
 
               <div>
-                <span>Módulos</span>
-                <strong>{row.moduleCount}</strong>
-              </div>
-
-              <div>
                 <span>Sinais técnicos</span>
                 <strong>{row.signalCount}</strong>
                 <small>{row.ruleCount} tipo(s)</small>
@@ -328,26 +425,52 @@ export function AdminParliamentaryQueue({ alerts }: Props) {
 
               <div>
                 <span>Valor CEAP</span>
-                <strong>{row.hasCeap ? formatCurrency(row.financialAmount) : "—"}</strong>
+                <strong>
+                  {row.hasCeap ? formatCurrency(row.financialAmount) : "—"}
+                </strong>
                 <small>{row.documentCount} documento(s)</small>
               </div>
 
               <div>
-                <span>Folha publicada recente</span>
+                <span>Verba acumulada</span>
                 <strong>
                   {row.hasOffice
-                    ? formatCurrency(row.officeSummary?.latestTotalPublished)
+                    ? formatCurrency(row.officeSummary?.accumulatedSpent)
                     : "—"}
                 </strong>
                 <small>
                   {row.hasOffice
-                    ? `${row.officeSummary?.latestStaffCount ?? 0} integrante(s) · ${competenceLabel(row.officeSummary?.latestCompetence)}`
+                    ? `${percent(
+                        row.officeSummary?.accumulatedUtilization
+                      )} de uso · ${competenceLabel(
+                        row.officeSummary?.latestCompetence
+                      )}`
+                    : "Módulo sem dados"}
+                </small>
+              </div>
+
+              <div>
+                <span>Equipe atual</span>
+                <strong>
+                  {row.hasOffice
+                    ? teamAssociated
+                      ? row.officeSummary?.currentSnapshotStaffCount ?? 0
+                      : "Não associada"
+                    : "—"}
+                </strong>
+                <small>
+                  {row.hasOffice
+                    ? teamAssociated
+                      ? "integrante(s) no snapshot"
+                      : "não interpretar como equipe vazia"
                     : "Módulo sem dados"}
                 </small>
               </div>
 
               <div className="parliamentary-queue-priority">
-                <b className={`severity severity-${alert.severity}`}>{alert.severity}</b>
+                <b className={`severity severity-${alert.severity}`}>
+                  {alert.severity}
+                </b>
                 <small>{row.highPriorityCount} sinal(is) de alta</small>
                 <time>{formatDate(alert.detectedAt)}</time>
               </div>
