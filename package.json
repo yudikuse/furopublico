@@ -13,7 +13,11 @@
     "camara:deputados": "node scripts/camara/sync-deputados.mjs",
     "camara:despesas": "node scripts/camara/sync-despesas.mjs",
     "camara:alertas": "node scripts/camara/detectar-alertas-v5.mjs",
-    "camara:importar-alertas": "node scripts/camara/importar-alertas-v5.mjs"
+    "camara:importar-alertas": "node scripts/camara/importar-alertas-v5.mjs",
+    "camara:gabinete:sync": "node scripts/camara/sync-verba-gabinete.mjs",
+    "camara:gabinete:detectar": "node scripts/camara/detectar-verba-gabinete.mjs",
+    "camara:gabinete:importar": "node scripts/camara/importar-verba-gabinete.mjs",
+    "camara:gabinete": "npm run camara:gabinete:sync && npm run camara:gabinete:detectar && npm run camara:gabinete:importar"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.110.7",

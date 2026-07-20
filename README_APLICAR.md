@@ -1,48 +1,101 @@
-# Furo Público — rede automática de fornecedores CEAP
+# Furo Público — Módulo Verba de Gabinete
 
-## Arquitetura aplicada
+## Arquitetura
+
+O módulo mantém as entidades separadas:
 
 ```text
-CASO PARLAMENTAR CEAP
+RELATÓRIO MENSAL / SNAPSHOT FUNCIONAL
 ↓
-FORNECEDORES E DOCUMENTOS ESTRUTURADOS
+REGISTRO DE REMUNERAÇÃO / LOTAÇÃO
 ↓
-REDE AUTOMÁTICA
+SINAL TÉCNICO
 ↓
-CADASTRO EMPRESARIAL E SÓCIOS
+CASO DO PARLAMENTAR
+↓
+INVESTIGAÇÃO, somente por decisão editorial
 ```
 
-O formulário manual fica reservado somente para outras partes encontradas dentro dos documentos, como locadora, administradora, proprietário, beneficiário ou pessoa mencionada.
+Os valores da folha publicada nunca são somados à CEAP.
 
-## Substituir
+## O que entra no sistema
 
-- `lib/entity-network.ts`
-- `components/admin-entity-network.tsx`
-- `app/entity-network.css`
+- relatórios mensais de remuneração publicados pela Câmara;
+- snapshot diário dos funcionários em atividade;
+- resumo mensal por gabinete;
+- histórico de presença por competência;
+- equipe do snapshot mais recente;
+- documentos de origem;
+- sinais técnicos de variação, concentração e inconsistência de lotação.
 
-## Adicionar ou substituir
+## Sinais iniciais
 
-- `app/api/admin/alerts/[id]/entity-network/route.ts`
+- variação relevante da folha publicada;
+- variação relevante da equipe entre competências consecutivas;
+- concentração da remuneração publicada nos três maiores valores;
+- mesmo número de ponto associado a mais de um gabinete na mesma competência.
 
-## O que muda
+Nenhum desses sinais comprova funcionário fantasma, nepotismo, acumulação indevida ou irregularidade.
 
-- ao abrir um caso, a rede é recalculada automaticamente uma vez por sessão;
-- todos os fornecedores de `evidence.suppliers` entram automaticamente;
-- documentos de `evidence.documents` ficam vinculados aos fornecedores;
-- CNPJs válidos são consultados automaticamente;
-- razão social, situação, atividade, endereço e sócios aparecem sem cadastro manual;
-- o histórico CEAP remove linhas exatamente repetidas antes de somar;
-- o campo `supplier_name` resumido, como `1 fornecedor(es)`, deixa de virar entidade;
-- o formulário manual passa a se chamar “Adicionar outra parte encontrada no documento”.
+## Arquivos novos
 
-## Depois de atualizar
+- `scripts/camara/sync-verba-gabinete.mjs`
+- `scripts/camara/detectar-verba-gabinete.mjs`
+- `scripts/camara/importar-verba-gabinete.mjs`
+- `components/admin-office-budget.tsx`
+- `components/admin-parliamentary-modules.tsx`
+- `app/office-budget.css`
+- `.github/workflows/verba-gabinete.yml`
 
-1. Aguarde o deploy da Vercel ficar verde.
-2. Não precisa rodar o Action da Câmara para esta correção.
-3. Abra novamente o caso de Glaustin da Fokus.
-4. A seção da rede deve mostrar “Preparando a rede automaticamente...”.
-5. A empresa `COMUNIK COMUNICAÇÃO E SERVIÇOS`, CNPJ `51.918.335/0001-24`, deve aparecer automaticamente com cadastro e sócios quando a fonte cadastral responder.
+## Arquivos substituídos
 
-## Observação
+- `components/admin-parliamentary-queue.tsx`
+- `app/admin/alertas/[id]/page.tsx`
+- `package.json`
 
-Nenhum SQL é necessário.
+## Banco de dados
+
+Não exige SQL novo.
+
+Os dados do módulo são gravados em `alerts.evidence.officeBudget`, dentro do mesmo caso parlamentar. O importador usa a mesma chave externa do módulo CEAP para evitar a criação de dois casos para o mesmo parlamentar e ano.
+
+## Aplicação
+
+1. Envie todos os arquivos para os caminhos correspondentes.
+2. Aguarde o deploy da Vercel ficar verde.
+3. No GitHub, abra **Actions**.
+4. Escolha **Monitoramento Verba de Gabinete — 57ª Legislatura**.
+5. Clique em **Run workflow**.
+6. Na primeira execução, selecione `backfill`.
+7. Depois da conclusão, atualize `/admin/alertas`.
+
+## Modos do workflow
+
+- `backfill`: baixa 2023, 2024, 2025 e 2026;
+- `current`: atualiza o ano atual e o anterior;
+- `snapshot`: atualiza somente a posição funcional mais recente.
+
+O workflow também possui agendas automáticas:
+
+- snapshot funcional diário;
+- atualização mensal do ano atual e anterior.
+
+## O que muda na fila
+
+A fila passa a mostrar separadamente:
+
+- módulos disponíveis;
+- sinais técnicos combinados por contagem;
+- valor CEAP;
+- folha publicada mais recente;
+- quantidade de integrantes da última competência.
+
+Os valores financeiros não são combinados.
+
+## Limitações explícitas
+
+- a folha mensal pode conter férias, gratificação natalina e parcelas eventuais;
+- o snapshot de funcionários representa a posição do dia anterior;
+- ausência em uma competência não comprova exoneração em data específica;
+- presença em mais de uma lotação exige conferência da fonte;
+- nomes, cargos e lotações não autorizam inferência de parentesco ou favorecimento.

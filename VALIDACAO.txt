@@ -1,18 +1,26 @@
-Furo Público — validação da rede automática CEAP
+Validações executadas
 
-Arquivos verificados:
-- lib/entity-network.ts
-- components/admin-entity-network.tsx
-- app/api/admin/alerts/[id]/entity-network/route.ts
-- app/entity-network.css
+1. node --check aprovado:
+- sync-verba-gabinete.mjs
+- detectar-verba-gabinete.mjs
+- importar-verba-gabinete.mjs
 
-Validações:
-- TypeScript/TSX: aprovado em compilação estrita com stubs dos tipos do projeto.
-- O fornecedor resumido como "1 fornecedor(es)" não é criado como entidade.
-- Os fornecedores são lidos de evidence.suppliers.
-- Os documentos são lidos de evidence.documents.
-- Linhas CEAP exatamente repetidas são removidas antes do histórico financeiro.
-- O recálculo automático ocorre uma vez por caso em cada sessão do navegador.
-- O formulário manual permanece disponível somente para partes adicionais documentadas.
-- Nenhum SQL é necessário.
-- Não é necessário executar o GitHub Action da Câmara.
+2. TypeScript/TSX:
+- admin-office-budget.tsx: transpilação aprovada
+- admin-parliamentary-modules.tsx: transpilação aprovada
+- admin-parliamentary-queue.tsx: transpilação aprovada
+- página do caso parlamentar: transpilação aprovada
+
+3. Teste sintético do detector:
+- 2 competências
+- 16 registros aproveitados
+- 1 caso parlamentar
+- variação de folha detectada
+- variação de equipe detectada
+- concentração detectada
+- valores financeiros mantidos separados da CEAP
+
+4. package.json:
+- JSON válido
+
+Observação: o primeiro teste com dados oficiais deve ser feito pelo workflow `backfill`. O relatório de diagnóstico informará linhas que não puderam ser associadas automaticamente a um parlamentar.
