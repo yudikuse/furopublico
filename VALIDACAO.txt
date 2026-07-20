@@ -1,26 +1,8 @@
-Validações executadas
+Validação realizada
 
-1. node --check aprovado:
-- sync-verba-gabinete.mjs
-- detectar-verba-gabinete.mjs
-- importar-verba-gabinete.mjs
-
-2. TypeScript/TSX:
-- admin-office-budget.tsx: transpilação aprovada
-- admin-parliamentary-modules.tsx: transpilação aprovada
-- admin-parliamentary-queue.tsx: transpilação aprovada
-- página do caso parlamentar: transpilação aprovada
-
-3. Teste sintético do detector:
-- 2 competências
-- 16 registros aproveitados
-- 1 caso parlamentar
-- variação de folha detectada
-- variação de equipe detectada
-- concentração detectada
-- valores financeiros mantidos separados da CEAP
-
-4. package.json:
-- JSON válido
-
-Observação: o primeiro teste com dados oficiais deve ser feito pelo workflow `backfill`. O relatório de diagnóstico informará linhas que não puderam ser associadas automaticamente a um parlamentar.
+- `node --check scripts/camara/sync-verba-gabinete.mjs`: aprovado.
+- Preservada a coleta mensal existente.
+- Preservados os caminhos de saída em data/raw/office-budget.
+- Adicionadas três fontes oficiais alternativas para o diretório de deputados.
+- Snapshot diário tornou-se não bloqueante somente em execução histórica.
+- Não foi possível realizar teste de rede ao vivo no ambiente local.

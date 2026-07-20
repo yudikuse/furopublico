@@ -61,19 +61,40 @@ function sha256(buffer) {
   return createHash("sha256").update(buffer).digest("hex");
 }
 
+function errorDetails(error) {
+  const messages = [];
+  let current = error;
+
+  for (let depth = 0; current && depth < 5; depth += 1) {
+    const message = current?.message ?? String(current);
+    const code = current?.code ? ` [${current.code}]` : "";
+    if (message && !messages.includes(`${message}${code}`)) {
+      messages.push(`${message}${code}`);
+    }
+    current = current?.cause;
+  }
+
+  return messages.join(" <- ") || "erro desconhecido";
+}
+
 async function fetchWithRetry(url, options = {}, attempts = 4) {
   let lastError;
+  const { timeoutMs = 45_000, headers: suppliedHeaders, ...fetchOptions } = options;
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
     try {
       const response = await fetch(url, {
+        ...fetchOptions,
         redirect: "follow",
+        signal: fetchOptions.signal ?? controller.signal,
         headers: {
-          "user-agent": "FuroPublico/1.0 (+monitoramento jornalistico)",
-          accept: "text/html,text/csv,application/octet-stream,*/*",
-          ...(options.headers ?? {})
-        },
-        ...options
+          "user-agent": "FuroPublico/1.1 (+monitoramento jornalistico; contato no repositorio)",
+          accept: "text/html,application/json,text/csv,application/octet-stream,*/*",
+          ...suppliedHeaders
+        }
       });
 
       if (!response.ok) {
@@ -83,13 +104,18 @@ async function fetchWithRetry(url, options = {}, attempts = 4) {
       return response;
     } catch (error) {
       lastError = error;
+      console.warn(
+        `Tentativa ${attempt}/${attempts} falhou para ${url}: ${errorDetails(error)}`
+      );
       if (attempt < attempts) {
-        await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
+        await new Promise((resolve) => setTimeout(resolve, attempt * 2_000));
       }
+    } finally {
+      clearTimeout(timer);
     }
   }
 
-  throw new Error(`Falha ao baixar ${url}: ${lastError?.message ?? lastError}`);
+  throw new Error(`Falha ao baixar ${url}: ${errorDetails(lastError)}`);
 }
 
 function absoluteUrl(href, baseUrl) {
@@ -198,11 +224,214 @@ async function syncRemunerationYear(year) {
 }
 
 
-async function syncDeputyDirectory() {
+function cleanText(value) {
+  return String(value ?? "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(Number.parseInt(code, 16)))
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&aacute;/gi, "á")
+    .replace(/&agrave;/gi, "à")
+    .replace(/&acirc;/gi, "â")
+    .replace(/&atilde;/gi, "ã")
+    .replace(/&eacute;/gi, "é")
+    .replace(/&ecirc;/gi, "ê")
+    .replace(/&iacute;/gi, "í")
+    .replace(/&oacute;/gi, "ó")
+    .replace(/&ocirc;/gi, "ô")
+    .replace(/&otilde;/gi, "õ")
+    .replace(/&uacute;/gi, "ú")
+    .replace(/&ccedil;/gi, "ç")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeDeputyRows(payload) {
+  const rows = Array.isArray(payload?.dados)
+    ? payload.dados
+    : Array.isArray(payload?.data)
+      ? payload.data
+      : Array.isArray(payload)
+        ? payload
+        : [];
+
+  return rows
+    .map((row) => {
+      const status = row?.ultimoStatus ?? row?.status ?? {};
+      const id = String(
+        row?.id ?? status?.id ?? String(row?.uri ?? "").match(/(\d+)$/)?.[1] ?? ""
+      );
+      const name = cleanText(
+        status?.nome ?? status?.nomeEleitoral ?? row?.nomeEleitoral ?? row?.nome ?? ""
+      );
+      if (!id || !name) return null;
+
+      return {
+        ...row,
+        id,
+        nome: row?.nome ?? name,
+        nomeEleitoral: row?.nomeEleitoral ?? name,
+        ultimoStatus: {
+          ...status,
+          id: status?.id ?? id,
+          nome: status?.nome ?? name,
+          nomeEleitoral: status?.nomeEleitoral ?? name
+        }
+      };
+    })
+    .filter(Boolean);
+}
+
+async function fetchDeputiesFromStaticFile() {
   const url =
     "https://dadosabertos.camara.leg.br/arquivos/deputados/json/deputados.json";
-  const response = await fetchWithRetry(url);
-  const buffer = Buffer.from(await response.arrayBuffer());
+  const response = await fetchWithRetry(url, {}, 3);
+  const payload = await response.json();
+  const rows = normalizeDeputyRows(payload);
+  if (!rows.length) throw new Error("Arquivo oficial retornou zero deputados válidos.");
+  return { rows, sourceUrl: url, sourceType: "dados-abertos-arquivo" };
+}
+
+async function fetchDeputiesFromApi() {
+  const rows = [];
+  let page = 1;
+  let nextUrl =
+    "https://dadosabertos.camara.leg.br/api/v2/deputados" +
+    "?idLegislatura=57&ordem=ASC&ordenarPor=nome&itens=100&pagina=1";
+
+  while (nextUrl && page <= 10) {
+    const response = await fetchWithRetry(nextUrl, {}, 3);
+    const payload = await response.json();
+    const batch = normalizeDeputyRows(payload);
+    rows.push(...batch);
+
+    const next = Array.isArray(payload?.links)
+      ? payload.links.find((link) => String(link?.rel).toLowerCase() === "next")?.href
+      : null;
+
+    if (next) {
+      nextUrl = next;
+    } else if (batch.length >= 100) {
+      page += 1;
+      nextUrl =
+        "https://dadosabertos.camara.leg.br/api/v2/deputados" +
+        `?idLegislatura=57&ordem=ASC&ordenarPor=nome&itens=100&pagina=${page}`;
+    } else {
+      nextUrl = null;
+    }
+
+    page += next ? 1 : 0;
+  }
+
+  const unique = [...new Map(rows.map((row) => [String(row.id), row])).values()];
+  if (!unique.length) throw new Error("API oficial retornou zero deputados válidos.");
+
+  return {
+    rows: unique,
+    sourceUrl: "https://dadosabertos.camara.leg.br/api/v2/deputados?idLegislatura=57",
+    sourceType: "dados-abertos-api"
+  };
+}
+
+async function fetchDeputiesFromPortal() {
+  const deputies = new Map();
+  let emptyPages = 0;
+
+  for (let page = 1; page <= 35 && emptyPages < 2; page += 1) {
+    const url =
+      "https://www.camara.leg.br/deputados/quem-sao/resultado" +
+      `?legislatura=57&pagina=${page}`;
+    const response = await fetchWithRetry(url, {}, 3);
+    const html = await response.text();
+    const before = deputies.size;
+    const pattern = /<a\b[^>]*href=["'](?:https:\/\/www\.camara\.leg\.br)?\/deputados\/(\d+)(?:[\/?#"'])[^>]*>([\s\S]*?)<\/a>/gi;
+    let match;
+
+    while ((match = pattern.exec(html))) {
+      const id = String(match[1]);
+      const name = cleanText(match[2]);
+      if (!name || normalize(name).includes("saiba mais")) continue;
+      const current = deputies.get(id);
+      if (!current || name.length > current.nome.length) {
+        deputies.set(id, {
+          id,
+          nome: name,
+          nomeEleitoral: name,
+          ultimoStatus: { id, nome: name, nomeEleitoral: name }
+        });
+      }
+    }
+
+    emptyPages = deputies.size === before ? emptyPages + 1 : 0;
+  }
+
+  const rows = [...deputies.values()];
+  if (!rows.length) throw new Error("Portal oficial retornou zero deputados válidos.");
+
+  return {
+    rows,
+    sourceUrl:
+      "https://www.camara.leg.br/deputados/quem-sao/resultado?legislatura=57",
+    sourceType: "portal-camara-html"
+  };
+}
+
+async function copyCachedDeputyDirectory() {
+  const candidates = [
+    path.resolve("data/raw/deputados.json"),
+    path.resolve("data/raw/camara/deputados.json"),
+    path.resolve("data/raw/office-budget/deputados.json")
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      const payload = JSON.parse(await fs.readFile(candidate, "utf8"));
+      const rows = normalizeDeputyRows(payload);
+      if (rows.length) {
+        return {
+          rows,
+          sourceUrl: `cache-local:${path.relative(process.cwd(), candidate)}`,
+          sourceType: "cache-local"
+        };
+      }
+    } catch {
+      // Tenta a próxima cópia local.
+    }
+  }
+
+  return null;
+}
+
+async function syncDeputyDirectory() {
+  const errors = [];
+  let result = null;
+
+  for (const strategy of [
+    fetchDeputiesFromStaticFile,
+    fetchDeputiesFromApi,
+    fetchDeputiesFromPortal
+  ]) {
+    try {
+      result = await strategy();
+      break;
+    } catch (error) {
+      errors.push(`${strategy.name}: ${errorDetails(error)}`);
+      console.warn(`Fonte de deputados indisponível (${strategy.name}): ${errorDetails(error)}`);
+    }
+  }
+
+  result ??= await copyCachedDeputyDirectory();
+  if (!result?.rows?.length) {
+    throw new Error(
+      "Não foi possível obter o diretório de deputados por nenhuma fonte oficial ou cache local. " +
+      errors.join(" | ")
+    );
+  }
+
+  const buffer = Buffer.from(JSON.stringify({ dados: result.rows }, null, 2));
   const filePath = path.join(outputDirectory, "deputados.json");
   const metadataPath = path.join(outputDirectory, "deputados.metadata.json");
 
@@ -211,18 +440,23 @@ async function syncDeputyDirectory() {
     metadataPath,
     JSON.stringify(
       {
-        sourceUrl: url,
+        sourceUrl: result.sourceUrl,
+        sourceType: result.sourceType,
         downloadedAt: new Date().toISOString(),
-        contentType: response.headers.get("content-type"),
+        contentType: "application/json",
+        recordCount: result.rows.length,
         byteLength: buffer.length,
-        sha256: sha256(buffer)
+        sha256: sha256(buffer),
+        failedStrategies: errors
       },
       null,
       2
     )
   );
 
-  console.log("Diretório oficial de deputados salvo.");
+  console.log(
+    `Diretório oficial de deputados salvo: ${result.rows.length} registro(s) via ${result.sourceType}.`
+  );
 }
 
 async function syncEmployeesSnapshot() {
@@ -274,7 +508,17 @@ if (!snapshotOnly) {
   }
 }
 
-result.snapshotDate = await syncEmployeesSnapshot();
+try {
+  result.snapshotDate = await syncEmployeesSnapshot();
+} catch (error) {
+  result.snapshotError = errorDetails(error);
+  console.warn(
+    "Snapshot atual de funcionários indisponível. " +
+    "A carga histórica mensal continuará sem interromper o backfill: " +
+    result.snapshotError
+  );
+  if (snapshotOnly) throw error;
+}
 
 await fs.writeFile(
   path.join(outputDirectory, "ultima-coleta.json"),
