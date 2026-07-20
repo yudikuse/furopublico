@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import { createClient } from "@supabase/supabase-js";
 
 const args = new Map(
   process.argv.slice(2).map((value) => {
@@ -23,6 +24,8 @@ const requestedDeputyIds = new Set(
 const snapshotOnly = args.get("snapshot-only") === "true";
 const concurrency = Math.max(1, Math.min(16, Number(args.get("concurrency") ?? 8) || 8));
 const outputDirectory = path.resolve("data/raw/office-budget");
+const camaraProxyUrl = String(process.env.CAMARA_PROXY_URL ?? "").trim();
+const camaraProxyToken = String(process.env.CAMARA_PROXY_TOKEN ?? "").trim();
 await fs.mkdir(outputDirectory, { recursive: true });
 
 function normalize(value) {
@@ -48,37 +51,77 @@ function errorDetails(error) {
   return messages.join(" <- ") || "erro desconhecido";
 }
 
+async function fetchDirect(url, options = {}) {
+  const { timeoutMs = 35_000, headers: suppliedHeaders, ...fetchOptions } = options;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...fetchOptions,
+      redirect: "follow",
+      signal: fetchOptions.signal ?? controller.signal,
+      headers: {
+        "user-agent": "FuroPublico/3.0 (+monitoramento jornalistico; fonte oficial)",
+        accept: "text/html,application/json,text/csv,application/octet-stream,*/*",
+        ...suppliedHeaders
+      }
+    });
+    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+    return response;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchThroughProxy(url, options = {}) {
+  if (!camaraProxyUrl || !camaraProxyToken) {
+    throw new Error("Proxy da Câmara não configurado.");
+  }
+
+  const proxy = new URL(camaraProxyUrl);
+  proxy.searchParams.set("url", url);
+
+  return fetchDirect(proxy.toString(), {
+    ...options,
+    timeoutMs: Math.max(Number(options.timeoutMs ?? 35_000), 50_000),
+    headers: {
+      authorization: `Bearer ${camaraProxyToken}`,
+      ...(options.headers ?? {})
+    }
+  });
+}
+
 async function fetchWithRetry(url, options = {}, attempts = 3) {
   let lastError;
-  const { timeoutMs = 35_000, headers: suppliedHeaders, ...fetchOptions } = options;
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await fetch(url, {
-        ...fetchOptions,
-        redirect: "follow",
-        signal: fetchOptions.signal ?? controller.signal,
-        headers: {
-          "user-agent": "FuroPublico/2.0 (+monitoramento jornalistico; fonte oficial)",
-          accept: "text/html,application/json,text/csv,application/octet-stream,*/*",
-          ...suppliedHeaders
-        }
-      });
-      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-      return response;
+      return await fetchDirect(url, options);
     } catch (error) {
       lastError = error;
       if (attempt < attempts) {
         await new Promise((resolve) => setTimeout(resolve, attempt * 1_500));
       }
-    } finally {
-      clearTimeout(timer);
     }
   }
 
-  throw new Error(`Falha ao baixar ${url}: ${errorDetails(lastError)}`);
+  if (camaraProxyUrl && camaraProxyToken) {
+    console.warn(`Acesso direto indisponível; usando transporte Vercel para ${url}`);
+    try {
+      return await fetchThroughProxy(url, options);
+    } catch (proxyError) {
+      throw new Error(
+        `Falha direta e pelo transporte Vercel em ${url}: ` +
+        `${errorDetails(lastError)} | proxy: ${errorDetails(proxyError)}`
+      );
+    }
+  }
+
+  throw new Error(
+    `Falha ao baixar ${url}: ${errorDetails(lastError)}. ` +
+    "CAMARA_PROXY_URL/CAMARA_PROXY_TOKEN não configurados."
+  );
 }
 
 function decodeHtmlEntities(value) {
@@ -207,6 +250,61 @@ function normalizeDeputyRows(payload) {
     .filter(Boolean);
 }
 
+async function fetchDeputiesFromSupabaseCases() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRole) {
+    throw new Error("Supabase não configurado para reaproveitar os casos existentes.");
+  }
+
+  const supabase = createClient(supabaseUrl, serviceRole, {
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+
+  const rows = [];
+  for (let from = 0; from < 5000; from += 1000) {
+    const { data, error } = await supabase
+      .from("alerts")
+      .select("deputy_name,evidence")
+      .range(from, from + 999);
+
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if ((data ?? []).length < 1000) break;
+  }
+
+  const deputies = new Map();
+  for (const row of rows) {
+    const evidence = row?.evidence && typeof row.evidence === "object" ? row.evidence : {};
+    const id = String(
+      evidence?.deputyId ??
+      evidence?.idDeputado ??
+      evidence?.parliamentarianId ??
+      ""
+    ).trim();
+    const name = cleanText(row?.deputy_name ?? evidence?.deputyName ?? "");
+    if (!id || !name) continue;
+
+    deputies.set(id, {
+      id,
+      nome: name,
+      nomeEleitoral: name,
+      ultimoStatus: { id, nome: name, nomeEleitoral: name }
+    });
+  }
+
+  const result = [...deputies.values()];
+  if (!result.length) {
+    throw new Error("Nenhum caso atual contém deputyId aproveitável.");
+  }
+
+  return {
+    rows: result,
+    sourceUrl: "supabase:alerts.evidence.deputyId",
+    sourceType: "casos-existentes-supabase"
+  };
+}
+
 async function fetchDeputiesFromStaticFile() {
   const url = "https://dadosabertos.camara.leg.br/arquivos/deputados/json/deputados.json";
   const response = await fetchWithRetry(url, {}, 3);
@@ -293,16 +391,21 @@ async function copyCachedDeputyDirectory() {
 async function syncDeputyDirectory() {
   const errors = [];
   let result = null;
-  for (const strategy of [fetchDeputiesFromApi, fetchDeputiesFromPortal, fetchDeputiesFromStaticFile]) {
+  for (const strategy of [
+    fetchDeputiesFromSupabaseCases,
+    copyCachedDeputyDirectory,
+    fetchDeputiesFromApi,
+    fetchDeputiesFromPortal,
+    fetchDeputiesFromStaticFile
+  ]) {
     try {
       result = await strategy();
-      break;
+      if (result?.rows?.length) break;
     } catch (error) {
       errors.push(`${strategy.name}: ${errorDetails(error)}`);
       console.warn(`Fonte de deputados indisponível (${strategy.name}): ${errorDetails(error)}`);
     }
   }
-  result ??= await copyCachedDeputyDirectory();
   if (!result?.rows?.length) {
     throw new Error("Não foi possível obter o diretório de deputados. " + errors.join(" | "));
   }
@@ -343,7 +446,7 @@ async function syncDeputyDirectory() {
       failedStrategies: errors
     }, null, 2)
   );
-  console.log(`Diretório da 57ª Legislatura: ${selectedRows.length} parlamentar(es) único(s).`);
+  console.log(`Parlamentares selecionados para a verba de gabinete: ${selectedRows.length} caso(s) único(s).`);
   return selectedRows;
 }
 
@@ -445,7 +548,7 @@ async function syncEmployeesSnapshot() {
 }
 
 const result = {
-  version: 2,
+  version: 3,
   generatedAt: new Date().toISOString(),
   years: [],
   snapshotDate: null
