@@ -132,6 +132,16 @@ function inspectSnapshotSchema(headers) {
       ["categoria funcional", "categoria", "vinculo", "vínculo", "descricao categoria"],
       ["categoriafuncional", "descricaocategoria", "categoria", "vinculo"]
     ),
+    groupCode: findHeader(
+      headers,
+      ["codgrupo", "codigo grupo", "código grupo", "cod grupo"],
+      ["codgrupo", "codigogrupo"]
+    ),
+    group: findHeader(
+      headers,
+      ["grupo", "grupo funcional", "descricao grupo", "descrição grupo"],
+      ["descricaogrupo", "grupofuncional", "grupo"]
+    ),
     cargo: findHeader(
       headers,
       ["cargo", "cargo efetivo", "descricao cargo", "descrição cargo"],
@@ -147,6 +157,11 @@ function inspectSnapshotSchema(headers) {
       ["lotacao", "lotação", "nome lotacao", "local de trabalho", "unidade"],
       ["nomelotacao", "descricaolotacao", "lotacao", "localdetrabalho", "unidade"]
     ),
+    lotationUri: findHeader(
+      headers,
+      ["urilotacao", "uri lotacao", "uri lotação"],
+      ["urilotacao"]
+    ),
     office: findHeader(
       headers,
       ["deputado", "parlamentar", "gabinete", "nome deputado", "nome parlamentar"],
@@ -161,22 +176,36 @@ function inspectSnapshotSchema(headers) {
 }
 
 function isParliamentarySecretary(record, schema) {
-  const haystack = normalize(
-    [
-      schema.category,
-      schema.cargo,
-      schema.function,
-      schema.lotation,
-      schema.office
-    ]
-      .filter(Boolean)
-      .map((header) => record[header])
-      .join(" ")
-  );
+  const values = [
+    schema.category,
+    schema.groupCode,
+    schema.group,
+    schema.cargo,
+    schema.function,
+    schema.lotation,
+    schema.lotationUri,
+    schema.office
+  ]
+    .filter(Boolean)
+    .map((header) => String(record?.[header] ?? "").trim());
+
+  const haystack = normalize(values.join(" "));
+  const compactHaystack = compact(values.join(" "));
+  const groupCode = normalize(firstValue(record, [schema.groupCode]));
+  const group = normalize(firstValue(record, [schema.group]));
+  const cargo = normalize(firstValue(record, [schema.cargo]));
+
   return (
+    groupCode === "sp" ||
+    groupCode.startsWith("sp ") ||
+    group.includes("secretariado parlamentar") ||
+    group.includes("secretarios parlamentares") ||
     haystack.includes("secretario parlamentar") ||
     haystack.includes("secretaria parlamentar") ||
-    /\bsp(?:\s|$)/.test(haystack)
+    haystack.includes("secretariado parlamentar") ||
+    /\bsp\s*0*\d{1,2}\b/.test(haystack) ||
+    /^sp\s*0*\d{1,2}$/.test(cargo) ||
+    /(?:^|[^a-z0-9])sp0*\d{1,2}(?:[^a-z0-9]|$)/.test(compactHaystack)
   );
 }
 
@@ -276,7 +305,9 @@ async function loadDeputyDirectory() {
 function matchDeputy(record, schema, directory) {
   const officeField = firstValue(record, [schema.office]);
   const lotation = firstValue(record, [schema.lotation]);
-  const combined = `${officeField} ${lotation}`.trim();
+  const lotationUri = firstValue(record, [schema.lotationUri]);
+  const group = firstValue(record, [schema.group]);
+  const combined = `${officeField} ${lotation} ${group} ${lotationUri}`.trim();
   const normalizedCombined = normalize(combined);
 
   const officeNumber = extractOfficeNumber(combined);
@@ -368,8 +399,14 @@ async function newestSnapshot(directory) {
       if (unmappedSamples.length < 20) {
         unmappedSamples.push({
           name: firstValue(record, [schema.name]),
+          point: firstValue(record, [schema.point]),
+          groupCode: firstValue(record, [schema.groupCode]),
+          group: firstValue(record, [schema.group]),
+          cargo: firstValue(record, [schema.cargo]),
+          function: firstValue(record, [schema.function]),
           office: firstValue(record, [schema.office]),
-          lotation: firstValue(record, [schema.lotation])
+          lotation: firstValue(record, [schema.lotation]),
+          lotationUri: firstValue(record, [schema.lotationUri])
         });
       }
       continue;
@@ -387,6 +424,8 @@ async function newestSnapshot(directory) {
       name: firstValue(record, [schema.name]) || "Não identificado",
       point: firstValue(record, [schema.point]),
       category: firstValue(record, [schema.category]),
+      groupCode: firstValue(record, [schema.groupCode]),
+      group: firstValue(record, [schema.group]),
       cargo: firstValue(record, [schema.cargo]),
       function: firstValue(record, [schema.function]),
       lotation,
@@ -400,6 +439,18 @@ async function newestSnapshot(directory) {
   console.log(`Snapshot ${date}: ${records.length} linha(s), ${secretaryRows} secretário(s) detectado(s), ${mappedRows} associado(s).`);
   console.log(`Cabeçalhos do snapshot: ${headers.join(" | ")}`);
   console.log(`Associações por método: ${JSON.stringify(mappedByMethod)}`);
+  if (secretaryRows === 0 && records.length) {
+    const classificationSamples = records.slice(0, 12).map((record) => ({
+      point: firstValue(record, [schema.point]),
+      groupCode: firstValue(record, [schema.groupCode]),
+      group: firstValue(record, [schema.group]),
+      cargo: firstValue(record, [schema.cargo]),
+      function: firstValue(record, [schema.function]),
+      lotation: firstValue(record, [schema.lotation]),
+      lotationUri: firstValue(record, [schema.lotationUri])
+    }));
+    console.log(`Amostras para classificação funcional: ${JSON.stringify(classificationSamples)}`);
+  }
   if (unmappedSamples.length) {
     console.log(`Amostras não associadas: ${JSON.stringify(unmappedSamples.slice(0, 5))}`);
   }

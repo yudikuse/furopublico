@@ -1,26 +1,6 @@
-VALIDAÇÃO — VERBA DE GABINETE V4
-
-Arquivos JavaScript:
-- sync-verba-gabinete.mjs: node --check aprovado
-- detectar-verba-gabinete.mjs: node --check aprovado
-- importar-verba-gabinete.mjs: node --check aprovado
-
-Componentes TypeScript/TSX:
-- admin-office-budget.tsx: transpilação sintática aprovada
-- admin-parliamentary-modules.tsx: transpilação sintática aprovada
-- admin-parliamentary-queue.tsx: transpilação sintática aprovada
-
-Teste funcional local do detector:
-- 6 competências mensais
-- 2 secretários parlamentares detectados
-- 2 secretários associados
-- associação por número do gabinete: aprovada
-- associação por nome do parlamentar: aprovada
-- gasto acumulado: calculado
-- utilização acumulada: calculada
-- classificações: calculadas
-- sinal mensal: preservado
-
-Limites:
-- A importação real no Supabase será validada pelo próximo GitHub Action.
-- Entradas e saídas exigem pelo menos dois snapshots associados em datas diferentes.
+Validação:
+- node --check: aprovado.
+- reconhecimento de codGrupo SP: implementado.
+- reconhecimento de grupo Secretariado Parlamentar: implementado.
+- reconhecimento de cargos SP01-SP99: implementado.
+- nenhum cálculo financeiro foi alterado.
