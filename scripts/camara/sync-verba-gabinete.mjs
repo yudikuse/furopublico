@@ -293,7 +293,7 @@ async function copyCachedDeputyDirectory() {
 async function syncDeputyDirectory() {
   const errors = [];
   let result = null;
-  for (const strategy of [fetchDeputiesFromStaticFile, fetchDeputiesFromApi, fetchDeputiesFromPortal]) {
+  for (const strategy of [fetchDeputiesFromApi, fetchDeputiesFromPortal, fetchDeputiesFromStaticFile]) {
     try {
       result = await strategy();
       break;
@@ -305,6 +305,24 @@ async function syncDeputyDirectory() {
   result ??= await copyCachedDeputyDirectory();
   if (!result?.rows?.length) {
     throw new Error("Não foi possível obter o diretório de deputados. " + errors.join(" | "));
+  }
+
+  // Um deputado pode aparecer várias vezes em arquivos históricos. A coleta da
+  // verba exige uma linha única por ID parlamentar.
+  result.rows = [...new Map(
+    result.rows
+      .filter((row) => row?.id)
+      .map((row) => [String(row.id), row])
+  ).values()];
+
+  // Trava editorial e operacional: a Câmara possui pouco mais de 500 cadeiras.
+  // Uma lista muito acima disso indica que uma fonte histórica foi interpretada
+  // como diretório da legislatura atual.
+  if (!requestedDeputyIds.size && result.rows.length > 700) {
+    throw new Error(
+      `Diretório inválido: ${result.rows.length} IDs únicos. ` +
+      "A coleta foi interrompida para evitar milhares de requisições indevidas."
+    );
   }
 
   const selectedRows = requestedDeputyIds.size
@@ -325,7 +343,7 @@ async function syncDeputyDirectory() {
       failedStrategies: errors
     }, null, 2)
   );
-  console.log(`Diretório de deputados: ${selectedRows.length} selecionado(s).`);
+  console.log(`Diretório da 57ª Legislatura: ${selectedRows.length} parlamentar(es) único(s).`);
   return selectedRows;
 }
 
@@ -345,6 +363,13 @@ async function mapLimit(items, limit, worker) {
 }
 
 async function syncOfficeBudgetYear(year, deputies) {
+  if (!requestedDeputyIds.size && deputies.length > 700) {
+    throw new Error(
+      `Coleta recusada: ${deputies.length} parlamentares para ${year}. ` +
+      "O diretório esperado para a legislatura deve ficar abaixo de 700."
+    );
+  }
+
   let completed = 0;
   const failures = [];
   const results = await mapLimit(deputies, concurrency, async (deputy) => {

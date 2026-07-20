@@ -1,49 +1,24 @@
-# Furo Público — Verba de Gabinete v2
+# Correção v2.1 — filtro de parlamentares
 
-## Motivo da correção
+## Problema corrigido
 
-A versão anterior baixava relatórios gerais de remuneração e tentava identificar
-o parlamentar pela lotação. A execução podia terminar sem erro, mas gerar zero
-casos quando a lotação não era associada ao deputado.
+A execução consultava 7.889 páginas por ano porque o arquivo geral de deputados
+foi aceito como se todos os registros pertencessem à 57ª Legislatura.
 
-A versão v2 usa diretamente, para cada deputado e ano:
+## Correção
 
-https://www.camara.leg.br/deputados/{ID}/verba-gabinete?ano={ANO}
+- a API oficial filtrada pela 57ª Legislatura passa a ser a primeira fonte;
+- IDs repetidos são removidos;
+- qualquer diretório com mais de 700 IDs é rejeitado;
+- a coleta anual possui uma segunda trava de segurança.
 
-Essa página oficial fornece o valor disponível e o valor gasto em cada mês.
+## Aplicação
 
-## Arquivos a substituir
+Substitua somente:
 
-- scripts/camara/sync-verba-gabinete.mjs
-- scripts/camara/detectar-verba-gabinete.mjs
-- scripts/camara/importar-verba-gabinete.mjs
-- components/admin-office-budget.tsx
-- components/admin-parliamentary-modules.tsx
+`scripts/camara/sync-verba-gabinete.mjs`
 
-Os demais arquivos não precisam ser alterados.
+Depois execute um novo `backfill`.
 
-## Depois de enviar ao GitHub
-
-1. Faça commit na branch main.
-2. Aguarde o deploy da Vercel.
-3. Abra Actions.
-4. Abra “Monitoramento Verba de Gabinete — 57ª Legislatura”.
-5. Execute com o modo `backfill`.
-6. Confira no log:
-   - Casos de verba de gabinete: valor maior que zero
-   - Competências mensais aproveitadas: valor maior que zero
-   - Casos atualizados: valor maior que zero
-7. Abra o Furo Público e pressione Ctrl + F5.
-
-## Mudanças na tela
-
-A aba passa a mostrar:
-
-- valor disponível por mês;
-- valor gasto por mês;
-- percentual utilizado;
-- variação mensal;
-- fonte oficial individual;
-- equipe atual, quando o snapshot funcional puder ser associado.
-
-Os valores permanecem separados da CEAP.
+A execução correta deverá mostrar aproximadamente algumas centenas de
+parlamentares, nunca 7.889.
