@@ -6,12 +6,12 @@ on:
       mode:
         description: "Tipo de execução"
         required: true
-        default: "backfill"
+        default: "current"
         type: choice
         options:
-          - backfill
           - current
           - snapshot
+          - backfill
   schedule:
     - cron: "20 7 * * *"
     - cron: "50 7 15 * *"
@@ -30,6 +30,8 @@ jobs:
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      CAMARA_PROXY_URL: ${{ secrets.CAMARA_PROXY_URL }}
+      CAMARA_PROXY_TOKEN: ${{ secrets.OFFICE_BUDGET_SYNC_TOKEN }}
 
     steps:
       - name: Checkout
@@ -43,6 +45,16 @@ jobs:
 
       - name: Instalar dependências
         run: npm ci
+
+
+      - name: Validar configuração do transporte
+        shell: bash
+        run: |
+          test -n "$CAMARA_PROXY_URL" || { echo "::error::CAMARA_PROXY_URL não chegou ao workflow."; exit 1; }
+          test -n "$CAMARA_PROXY_TOKEN" || { echo "::error::OFFICE_BUDGET_SYNC_TOKEN não chegou ao workflow."; exit 1; }
+          test -n "$NEXT_PUBLIC_SUPABASE_URL" || { echo "::error::NEXT_PUBLIC_SUPABASE_URL não chegou ao workflow."; exit 1; }
+          test -n "$SUPABASE_SERVICE_ROLE_KEY" || { echo "::error::SUPABASE_SERVICE_ROLE_KEY não chegou ao workflow."; exit 1; }
+          echo "Configuração do transporte e do Supabase disponível."
 
       - name: Definir modo da execução
         id: mode
@@ -58,7 +70,7 @@ jobs:
 
       - name: Coletar histórico da 57ª Legislatura
         if: steps.mode.outputs.value == 'backfill'
-        run: node scripts/camara/sync-verba-gabinete.mjs --years=2023,2024,2025,2026
+        run: node scripts/camara/sync-verba-gabinete.mjs --years=2023,2024,2025,2026 --concurrency=8
 
       - name: Coletar ano corrente e anterior
         if: steps.mode.outputs.value == 'current'
@@ -66,13 +78,13 @@ jobs:
         run: |
           CURRENT_YEAR=$(date -u +%Y)
           PREVIOUS_YEAR=$((CURRENT_YEAR - 1))
-          node scripts/camara/sync-verba-gabinete.mjs --years=${PREVIOUS_YEAR},${CURRENT_YEAR}
+          node scripts/camara/sync-verba-gabinete.mjs --years=${PREVIOUS_YEAR},${CURRENT_YEAR} --concurrency=8
 
       - name: Coletar snapshot diário
         if: steps.mode.outputs.value == 'snapshot'
         run: node scripts/camara/sync-verba-gabinete.mjs --snapshot-only
 
-      - name: Detectar sinais e organizar documentos
+      - name: Detectar sinais, acumulados e equipe
         shell: bash
         run: |
           if [ "${{ steps.mode.outputs.value }}" = "snapshot" ]; then
@@ -88,4 +100,5 @@ jobs:
         if: always()
         run: |
           echo "Modo: ${{ steps.mode.outputs.value }}"
-          echo "A verba de gabinete foi mantida separada da CEAP."
+          echo "A verba de gabinete permanece separada da CEAP."
+          echo "Snapshot sem associação não é tratado como equipe vazia."
