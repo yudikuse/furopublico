@@ -395,13 +395,16 @@ export function AdminOfficeBudget({ alert }: Props) {
           role
         };
       }),
-    [enrichedStaff]
+    [currentStaff]
   );
 
   const staffSalarySummary = useMemo(() => {
     const salaries = enrichedStaff
       .map((employee) => employee.salary.gross)
-      .filter((value): value is number => Number.isFinite(value) && value > 0);
+      .filter(
+        (value): value is number =>
+          typeof value === "number" && Number.isFinite(value) && value > 0
+      );
 
     return {
       total: salaries.reduce((total, value) => total + value, 0),
@@ -602,7 +605,7 @@ export function AdminOfficeBudget({ alert }: Props) {
       <div className="office-budget-metrics office-budget-metrics-expanded">
         <article>
           <span>Gasto acumulado</span>
-          <strong>{formatCurrency(summary.accumulatedSpent)}</strong>
+          <strong>{formatCurrency(summary.accumulatedSpent ?? 0)}</strong>
           <small>
             {competenceLabel(summary.periodStart)} a{" "}
             {competenceLabel(summary.periodEnd)}
@@ -610,11 +613,11 @@ export function AdminOfficeBudget({ alert }: Props) {
         </article>
         <article>
           <span>Disponível acumulado</span>
-          <strong>{formatCurrency(summary.accumulatedAvailable)}</strong>
+          <strong>{formatCurrency(summary.accumulatedAvailable ?? 0)}</strong>
         </article>
         <article>
           <span>Não utilizado acumulado</span>
-          <strong>{formatCurrency(summary.accumulatedUnused)}</strong>
+          <strong>{formatCurrency(summary.accumulatedUnused ?? 0)}</strong>
         </article>
         <article>
           <span>Uso acumulado</span>
@@ -622,12 +625,12 @@ export function AdminOfficeBudget({ alert }: Props) {
         </article>
         <article>
           <span>Média mensal</span>
-          <strong>{formatCurrency(summary.averageMonthlySpent)}</strong>
+          <strong>{formatCurrency(summary.averageMonthlySpent ?? 0)}</strong>
           <small>{summary.monthCount ?? months.length} competência(s)</small>
         </article>
         <article>
           <span>Maior mês</span>
-          <strong>{formatCurrency(summary.maxMonthlySpent)}</strong>
+          <strong>{formatCurrency(summary.maxMonthlySpent ?? 0)}</strong>
           <small>{competenceLabel(summary.maxMonthlyCompetence)}</small>
         </article>
         <article>
