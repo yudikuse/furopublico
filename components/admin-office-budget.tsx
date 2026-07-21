@@ -479,7 +479,7 @@ export function AdminOfficeBudget({ alert }: Props) {
             .filter((role) => role && role !== "Não informada no snapshot")
         )
       ].sort((a, b) => String(a).localeCompare(String(b), "pt-BR")),
-    [currentStaff]
+    [enrichedStaff]
   );
 
   const staffYears = useMemo(
