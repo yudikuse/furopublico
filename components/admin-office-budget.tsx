@@ -21,6 +21,14 @@ type OfficeEmployee = {
   firstSeen?: string;
   lastSeen?: string;
   snapshotsPresent?: number;
+  salaryLevel?: number | null;
+  hasGrg?: boolean | null;
+  monthlyGross?: number | null;
+  salaryCode?: string;
+  salaryTableEffectiveDate?: string;
+  salaryTableSourceUrl?: string;
+  formalRole?: string;
+  roleDescription?: string;
 };
 
 type OfficeMonth = {
@@ -224,6 +232,126 @@ function appointmentYear(value?: string) {
   return match?.[0] ?? "";
 }
 
+const SP_SALARY_2026: Record<number, number> = {
+  1: 1710.83,
+  2: 1906.12,
+  3: 2101.45,
+  4: 2296.72,
+  5: 2492.06,
+  6: 2687.34,
+  7: 2882.65,
+  8: 3077.95,
+  9: 3273.26,
+  10: 3468.54,
+  11: 3663.85,
+  12: 4054.45,
+  13: 4445.03,
+  14: 4835.65,
+  15: 5226.24,
+  16: 5616.84,
+  17: 6202.74,
+  18: 6788.64,
+  19: 7374.54,
+  20: 7960.44,
+  21: 8546.34,
+  22: 9327.56,
+  23: 10108.74,
+  24: 11544.1,
+  25: 12979.45
+};
+
+const SALARY_TABLE_SOURCE =
+  "https://www2.camara.leg.br/a-camara/estruturaadm/diretorias/diretoria-de-gestao-pessoas/estrutura-1/depes/secretariado-parlamentar/posse-de-sp-sem-vinculo/TABSP202601MAR202620260303.pdf/view";
+
+type SalaryInfo = {
+  code: string;
+  level: number | null;
+  hasGrg: boolean | null;
+  gross: number | null;
+};
+
+function salaryInfo(employee: OfficeEmployee): SalaryInfo {
+  const rawCode = [
+    employee.salaryCode,
+    employee.cargo,
+    employee.category,
+    employee.function
+  ]
+    .filter(Boolean)
+    .map(String)
+    .find((value) => /\bSP\s*-?\s*\d{1,2}[CS]?\b/i.test(value));
+
+  const match = String(rawCode ?? "").match(/\bSP\s*-?\s*0?(\d{1,2})([CS])?\b/i);
+  const level = Number(employee.salaryLevel ?? match?.[1] ?? 0) || null;
+  const suffix = String(match?.[2] ?? "").toUpperCase();
+  const hasGrg =
+    typeof employee.hasGrg === "boolean"
+      ? employee.hasGrg
+      : suffix === "C"
+        ? true
+        : suffix === "S"
+          ? false
+          : null;
+
+  const base = level ? SP_SALARY_2026[level] : undefined;
+  const calculated =
+    base === undefined || hasGrg === null ? null : base * (hasGrg ? 2 : 1);
+  const gross = Number(employee.monthlyGross ?? calculated);
+
+  return {
+    code: String(rawCode ?? (level ? `SP${String(level).padStart(2, "0")}` : "—"))
+      .replace(/\s+/g, "")
+      .toUpperCase(),
+    level,
+    hasGrg,
+    gross: Number.isFinite(gross) && gross > 0 ? gross : null
+  };
+}
+
+function roleInfo(employee: OfficeEmployee) {
+  const raw = String(employee.formalRole ?? employee.function ?? "").trim();
+  const value = normalized(raw);
+
+  if (value.includes("assessor parlamentar")) {
+    return {
+      label: "Assessor Parlamentar",
+      description:
+        "Pode coordenar a administração e a equipe, elaborar minutas legislativas e pronunciamentos e acompanhar comissões e compromissos oficiais."
+    };
+  }
+
+  if (value.includes("assistente parlamentar")) {
+    return {
+      label: "Assistente Parlamentar",
+      description:
+        "Pode acompanhar processos e matérias legislativas, cuidar de agenda e correspondência, manter dados e atender o público."
+    };
+  }
+
+  if (value.includes("auxiliar parlamentar")) {
+    return {
+      label: "Auxiliar Parlamentar",
+      description:
+        "Pode apoiar documentos e arquivos, atendimento, telefone, correspondência, programas informatizados e condução de veículos."
+    };
+  }
+
+  return {
+    label: "Não informada no snapshot",
+    description:
+      "O nível SP define a remuneração, não a tarefa. A fonte atual não identifica se a pessoa foi designada como assessor, assistente ou auxiliar."
+  };
+}
+
+function salaryBand(value?: number | null) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) return "unknown";
+  if (amount >= 20000) return "20plus";
+  if (amount >= 10000) return "10to20";
+  if (amount >= 5000) return "5to10";
+  return "below5";
+}
+
 export function AdminOfficeBudget({ alert }: Props) {
   const evidence = alert.evidence as Record<string, unknown>;
   const officeBudget = evidence.officeBudget as OfficeBudgetEvidence | undefined;
@@ -236,8 +364,9 @@ export function AdminOfficeBudget({ alert }: Props) {
   const [staffSearch, setStaffSearch] = useState("");
   const [staffLocation, setStaffLocation] = useState("");
   const [staffRole, setStaffRole] = useState("");
+  const [staffSalaryBand, setStaffSalaryBand] = useState("");
   const [staffYear, setStaffYear] = useState("");
-  const [staffSort, setStaffSort] = useState("name");
+  const [staffSort, setStaffSort] = useState("salary-desc");
 
   const [severity, setSeverity] = useState("");
   const [signalType, setSignalType] = useState("");
@@ -254,6 +383,36 @@ export function AdminOfficeBudget({ alert }: Props) {
   const movements = officeBudget?.staffMovements ?? [];
   const currentStaff =
     officeBudget?.currentSnapshot?.staff ?? officeBudget?.staffProfiles ?? [];
+
+  const enrichedStaff = useMemo(
+    () =>
+      currentStaff.map((employee) => {
+        const salary = salaryInfo(employee);
+        const role = roleInfo(employee);
+        return {
+          ...employee,
+          salary,
+          role
+        };
+      }),
+    [enrichedStaff]
+  );
+
+  const staffSalarySummary = useMemo(() => {
+    const salaries = enrichedStaff
+      .map((employee) => employee.salary.gross)
+      .filter((value): value is number => Number.isFinite(value) && value > 0);
+
+    return {
+      total: salaries.reduce((total, value) => total + value, 0),
+      highest: salaries.length ? Math.max(...salaries) : 0,
+      withGrg: enrichedStaff.filter((employee) => employee.salary.hasGrg === true).length,
+      withoutGrg: enrichedStaff.filter((employee) => employee.salary.hasGrg === false).length,
+      rolesInformed: enrichedStaff.filter(
+        (employee) => employee.role.label !== "Não informada no snapshot"
+      ).length
+    };
+  }, [enrichedStaff]);
 
   const allMonthRows = useMemo(
     () =>
@@ -312,9 +471,9 @@ export function AdminOfficeBudget({ alert }: Props) {
     () =>
       [
         ...new Set(
-          currentStaff
-            .map((employee) => employee.function || employee.cargo || employee.category)
-            .filter(Boolean)
+          enrichedStaff
+            .map((employee) => employee.role.label)
+            .filter((role) => role && role !== "Não informada no snapshot")
         )
       ].sort((a, b) => String(a).localeCompare(String(b), "pt-BR")),
     [currentStaff]
@@ -324,17 +483,17 @@ export function AdminOfficeBudget({ alert }: Props) {
     () =>
       [
         ...new Set(
-          currentStaff.map((employee) => appointmentYear(employee.appointmentDate)).filter(Boolean)
+          enrichedStaff.map((employee) => appointmentYear(employee.appointmentDate)).filter(Boolean)
         )
       ].sort((a, b) => Number(b) - Number(a)),
-    [currentStaff]
+    [enrichedStaff]
   );
 
   const filteredStaff = useMemo(() => {
     const query = normalized(staffSearch.trim());
-    return currentStaff
+    return enrichedStaff
       .filter((employee) => {
-        const role = employee.function || employee.cargo || employee.category || "";
+        const role = employee.role.label;
         const haystack = normalized(
           [
             employee.name,
@@ -342,6 +501,9 @@ export function AdminOfficeBudget({ alert }: Props) {
             employee.category,
             employee.cargo,
             employee.function,
+            employee.role.label,
+            employee.salary.code,
+            employee.salary.gross ? String(employee.salary.gross) : "",
             employee.lotation
           ]
             .filter(Boolean)
@@ -351,10 +513,15 @@ export function AdminOfficeBudget({ alert }: Props) {
           (!query || haystack.includes(query)) &&
           (!staffLocation || locationClass(employee.lotation) === staffLocation) &&
           (!staffRole || role === staffRole) &&
+          (!staffSalaryBand || salaryBand(employee.salary.gross) === staffSalaryBand) &&
           (!staffYear || appointmentYear(employee.appointmentDate) === staffYear)
         );
       })
       .sort((a, b) => {
+        if (staffSort === "salary-asc") {
+          return Number(a.salary.gross ?? Number.MAX_SAFE_INTEGER) -
+            Number(b.salary.gross ?? Number.MAX_SAFE_INTEGER);
+        }
         if (staffSort === "appointment") {
           return String(b.appointmentDate ?? "").localeCompare(
             String(a.appointmentDate ?? "")
@@ -363,13 +530,18 @@ export function AdminOfficeBudget({ alert }: Props) {
         if (staffSort === "location") {
           return locationClass(a.lotation).localeCompare(locationClass(b.lotation), "pt-BR");
         }
-        return String(a.name ?? "").localeCompare(String(b.name ?? ""), "pt-BR");
+        if (staffSort === "name") {
+          return String(a.name ?? "").localeCompare(String(b.name ?? ""), "pt-BR");
+        }
+        return Number(b.salary.gross ?? -1) - Number(a.salary.gross ?? -1) ||
+          String(a.name ?? "").localeCompare(String(b.name ?? ""), "pt-BR");
       });
   }, [
-    currentStaff,
+    enrichedStaff,
     staffSearch,
     staffLocation,
     staffRole,
+    staffSalaryBand,
     staffYear,
     staffSort
   ]);
@@ -746,6 +918,58 @@ export function AdminOfficeBudget({ alert }: Props) {
 
       {view === "staff" ? (
         <div>
+          {snapshotAssociated ? (
+            <>
+              <div className="office-budget-staff-pay-summary">
+                <article>
+                  <span>Folha fixa estimada</span>
+                  <strong>{formatCurrency(staffSalarySummary.total)}</strong>
+                  <small>Vencimento + GRG, sem auxílio-alimentação e descontos.</small>
+                </article>
+                <article>
+                  <span>Maior valor individual</span>
+                  <strong>{formatCurrency(staffSalarySummary.highest)}</strong>
+                </article>
+                <article>
+                  <span>Com GRG</span>
+                  <strong>{staffSalarySummary.withGrg}</strong>
+                  <small>A gratificação dobra o vencimento do nível.</small>
+                </article>
+                <article>
+                  <span>Atribuição formal informada</span>
+                  <strong>{staffSalarySummary.rolesInformed}</strong>
+                  <small>O nível salarial não identifica a função.</small>
+                </article>
+              </div>
+
+              <div className="office-budget-role-guide">
+                <h3>O que significa um SP25C de R$ 25.958,90?</h3>
+                <p>
+                  <strong>SP25</strong> é o nível de vencimento e <strong>C</strong>
+                  indica GRG. O código informa a remuneração fixa de tabela, mas
+                  não prova que a pessoa seja chefe de gabinete nem descreve a
+                  atividade executada. A designação formal deve ser Assessor,
+                  Assistente ou Auxiliar Parlamentar; quando a fonte não informa
+                  essa designação, o sistema registra “não informada”.
+                </p>
+                <div>
+                  <article>
+                    <strong>Assessor Parlamentar</strong>
+                    <small>Coordenação, equipe, minutas legislativas, pronunciamentos e acompanhamento de comissões.</small>
+                  </article>
+                  <article>
+                    <strong>Assistente Parlamentar</strong>
+                    <small>Processos, matérias legislativas, agenda, correspondência, dados e atendimento.</small>
+                  </article>
+                  <article>
+                    <strong>Auxiliar Parlamentar</strong>
+                    <small>Documentos, arquivo, atendimento, telefone, sistemas e apoio operacional.</small>
+                  </article>
+                </div>
+              </div>
+            </>
+          ) : null}
+
           <div className="office-budget-filter-bar office-budget-staff-filters">
             <label className="office-budget-search-field">
               Buscar integrante
@@ -769,9 +993,10 @@ export function AdminOfficeBudget({ alert }: Props) {
               </select>
             </label>
             <label>
-              Cargo/função
+              Atribuição formal
               <select value={staffRole} onChange={(event) => setStaffRole(event.target.value)}>
-                <option value="">Todos</option>
+                <option value="">Todas</option>
+                <option value="Não informada no snapshot">Não informada</option>
                 {staffRoles.map((role) => (
                   <option key={String(role)} value={String(role)}>
                     {String(role)}
@@ -780,7 +1005,21 @@ export function AdminOfficeBudget({ alert }: Props) {
               </select>
             </label>
             <label>
-              Ano de nomeação
+              Valor mensal
+              <select
+                value={staffSalaryBand}
+                onChange={(event) => setStaffSalaryBand(event.target.value)}
+              >
+                <option value="">Todos</option>
+                <option value="20plus">R$ 20 mil ou mais</option>
+                <option value="10to20">R$ 10 mil a R$ 19.999</option>
+                <option value="5to10">R$ 5 mil a R$ 9.999</option>
+                <option value="below5">Abaixo de R$ 5 mil</option>
+                <option value="unknown">Sem valor calculável</option>
+              </select>
+            </label>
+            <label>
+              Início do registro atual
               <select value={staffYear} onChange={(event) => setStaffYear(event.target.value)}>
                 <option value="">Todos</option>
                 {staffYears.map((year) => (
@@ -793,8 +1032,10 @@ export function AdminOfficeBudget({ alert }: Props) {
             <label>
               Ordenar
               <select value={staffSort} onChange={(event) => setStaffSort(event.target.value)}>
+                <option value="salary-desc">Maior valor mensal</option>
+                <option value="salary-asc">Menor valor mensal</option>
                 <option value="name">Nome A–Z</option>
-                <option value="appointment">Nomeação mais recente</option>
+                <option value="appointment">Registro atual mais recente</option>
                 <option value="location">Local</option>
               </select>
             </label>
@@ -811,31 +1052,56 @@ export function AdminOfficeBudget({ alert }: Props) {
                 <table className="admin-table office-budget-table">
                   <thead>
                     <tr>
-                      <th>Nome</th>
-                      <th>Ponto</th>
-                      <th>Categoria/cargo/função</th>
-                      <th>Nomeação informada</th>
+                      <th>Ordem / nome</th>
+                      <th>Nível e GRG</th>
+                      <th>Valor mensal de tabela</th>
+                      <th>Atribuição formal</th>
+                      <th>Início do registro atual</th>
                       <th>Local</th>
                       <th>Lotação</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredStaff.map((employee) => (
+                    {filteredStaff.map((employee, index) => (
                       <tr key={employee.key ?? employee.point ?? employee.name}>
                         <td>
+                          <span className="office-budget-rank">#{index + 1}</span>
                           <strong>{employee.name ?? "Não identificado"}</strong>
                           <small>
-                            Associação: {employee.matchMethod ?? "fonte direta"}
+                            Ponto: {employee.point || "—"} · associação:{" "}
+                            {employee.matchMethod ?? "fonte direta"}
                           </small>
                         </td>
-                        <td>{employee.point || "—"}</td>
                         <td>
-                          {employee.function ||
-                            employee.cargo ||
-                            employee.category ||
-                            "—"}
+                          <strong>{employee.salary.code}</strong>
+                          <small>
+                            {employee.salary.hasGrg === true
+                              ? "Com GRG"
+                              : employee.salary.hasGrg === false
+                                ? "Sem GRG"
+                                : "GRG não identificada"}
+                          </small>
                         </td>
-                        <td>{formatDate(employee.appointmentDate)}</td>
+                        <td>
+                          <strong className="office-budget-salary">
+                            {employee.salary.gross
+                              ? formatCurrency(employee.salary.gross)
+                              : "—"}
+                          </strong>
+                          <small>
+                            Vencimento + GRG; não inclui auxílio-alimentação.
+                          </small>
+                        </td>
+                        <td>
+                          <strong>{employee.role.label}</strong>
+                          <small>{employee.role.description}</small>
+                        </td>
+                        <td>
+                          {formatDate(employee.appointmentDate)}
+                          <small>
+                            Pode refletir posse, mudança de nível ou novo registro.
+                          </small>
+                        </td>
                         <td>{locationClass(employee.lotation)}</td>
                         <td>{employee.lotation || "—"}</td>
                       </tr>
@@ -977,6 +1243,25 @@ export function AdminOfficeBudget({ alert }: Props) {
               <span>Não associadas</span>
               <strong>{officeBudget.dataQuality?.unmappedRowCount ?? 0}</strong>
             </article>
+          </div>
+
+          <div className="office-budget-method-note">
+            <h3>Remuneração e atribuições</h3>
+            <p>
+              Os valores individuais são calculados pelo nível SP vigente a partir
+              de 18 de fevereiro de 2026. O sufixo C indica GRG e dobra o
+              vencimento; o sufixo S indica ausência da gratificação. O valor não
+              inclui auxílio-alimentação nem descontos.
+            </p>
+            <p>
+              O nível SP não define a atividade. As atribuições formais possíveis
+              são Assessor Parlamentar, Assistente Parlamentar e Auxiliar
+              Parlamentar. Quando o snapshot não informa a designação, o sistema
+              não a presume.
+            </p>
+            <a href={SALARY_TABLE_SOURCE} target="_blank" rel="noreferrer">
+              Abrir tabela oficial de remuneração ↗
+            </a>
           </div>
 
           <div className="office-budget-method-note">

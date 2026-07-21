@@ -34,6 +34,91 @@ function stableId(parts) {
     .digest("hex");
 }
 
+const SP_SALARY_2026 = {
+  1: 1710.83,
+  2: 1906.12,
+  3: 2101.45,
+  4: 2296.72,
+  5: 2492.06,
+  6: 2687.34,
+  7: 2882.65,
+  8: 3077.95,
+  9: 3273.26,
+  10: 3468.54,
+  11: 3663.85,
+  12: 4054.45,
+  13: 4445.03,
+  14: 4835.65,
+  15: 5226.24,
+  16: 5616.84,
+  17: 6202.74,
+  18: 6788.64,
+  19: 7374.54,
+  20: 7960.44,
+  21: 8546.34,
+  22: 9327.56,
+  23: 10108.74,
+  24: 11544.1,
+  25: 12979.45
+};
+
+const SALARY_TABLE_EFFECTIVE_DATE = "2026-02-18";
+const SALARY_TABLE_SOURCE_URL =
+  "https://www2.camara.leg.br/a-camara/estruturaadm/diretorias/diretoria-de-gestao-pessoas/estrutura-1/depes/secretariado-parlamentar/posse-de-sp-sem-vinculo/TABSP202601MAR202620260303.pdf/view";
+
+function salaryMetadata(...values) {
+  const raw = values
+    .filter(Boolean)
+    .map(String)
+    .find((value) => /\bSP\s*-?\s*\d{1,2}[CS]?\b/i.test(value));
+  const match = String(raw ?? "").match(/\bSP\s*-?\s*0?(\d{1,2})([CS])?\b/i);
+  const level = Number(match?.[1] ?? 0);
+  const suffix = String(match?.[2] ?? "").toUpperCase();
+  const hasGrg = suffix === "C" ? true : suffix === "S" ? false : null;
+  const base = SP_SALARY_2026[level];
+  const monthlyGross =
+    base === undefined || hasGrg === null ? null : base * (hasGrg ? 2 : 1);
+
+  return {
+    salaryCode: raw ? String(raw).replace(/\s+/g, "").toUpperCase() : "",
+    salaryLevel: level || null,
+    hasGrg,
+    monthlyGross,
+    salaryTableEffectiveDate: SALARY_TABLE_EFFECTIVE_DATE,
+    salaryTableSourceUrl: SALARY_TABLE_SOURCE_URL
+  };
+}
+
+function formalRoleMetadata(value) {
+  const role = normalize(value);
+  if (role.includes("assessor parlamentar")) {
+    return {
+      formalRole: "Assessor Parlamentar",
+      roleDescription:
+        "Coordenação administrativa e de equipe, elaboração de minutas legislativas e pronunciamentos e acompanhamento de comissões e compromissos oficiais."
+    };
+  }
+  if (role.includes("assistente parlamentar")) {
+    return {
+      formalRole: "Assistente Parlamentar",
+      roleDescription:
+        "Acompanhamento de processos e matérias legislativas, agenda, correspondência, bases de dados e atendimento."
+    };
+  }
+  if (role.includes("auxiliar parlamentar")) {
+    return {
+      formalRole: "Auxiliar Parlamentar",
+      roleDescription:
+        "Apoio a documentos e arquivos, atendimento, telefone, sistemas informatizados, correspondência e atividades operacionais."
+    };
+  }
+  return {
+    formalRole: "",
+    roleDescription:
+      "O snapshot não informa se a pessoa foi designada como assessor, assistente ou auxiliar parlamentar."
+  };
+}
+
 function decodeCsv(buffer) {
   const utf8 = new TextDecoder("utf-8", { fatal: false }).decode(buffer);
   const replacementCount = (utf8.match(/�/g) ?? []).length;
@@ -417,17 +502,24 @@ async function newestSnapshot(directory) {
     const deputyId = String(match.deputy.id);
     const staff = groups.get(deputyId) ?? [];
     const lotation = firstValue(record, [schema.lotation, schema.office]);
+    const cargo = firstValue(record, [schema.cargo]);
+    const functionName = firstValue(record, [schema.function]);
+    const category = firstValue(record, [schema.category]);
+    const salary = salaryMetadata(cargo, category, functionName);
+    const role = formalRoleMetadata(functionName);
     staff.push({
       key:
         firstValue(record, [schema.point]) ||
         stableId([deputyId, firstValue(record, [schema.name]), lotation]),
       name: firstValue(record, [schema.name]) || "Não identificado",
       point: firstValue(record, [schema.point]),
-      category: firstValue(record, [schema.category]),
+      category,
       groupCode: firstValue(record, [schema.groupCode]),
       group: firstValue(record, [schema.group]),
-      cargo: firstValue(record, [schema.cargo]),
-      function: firstValue(record, [schema.function]),
+      cargo,
+      function: functionName,
+      ...salary,
+      ...role,
       lotation,
       appointmentDate: firstValue(record, [schema.appointmentDate]),
       matchMethod: match.method,
@@ -784,7 +876,7 @@ const cases = entries.map((entry) => {
     deputyName: String(entry.deputyName),
     analyzedYear: Number(entry.year),
     officeBudget: {
-      version: 4,
+      version: 5,
       sourceModule: "office_budget",
       snapshotOnly: Boolean(entry.snapshotOnly),
       generatedAt: new Date().toISOString(),
@@ -814,7 +906,7 @@ const cases = entries.map((entry) => {
         unmappedSamples: snapshot?.unmappedSamples ?? [],
         missingCompetences,
         salaryBasis:
-          "O histórico mensal usa diretamente os valores disponível e gasto publicados na página individual de verba de gabinete da Câmara. Não é a soma da folha geral de remuneração.",
+          "O histórico mensal usa diretamente os valores disponível e gasto publicados na página individual de verba de gabinete da Câmara. Para a equipe atual, o valor individual é calculado pelo nível SP e pela presença ou ausência de GRG conforme a tabela oficial vigente desde 18/02/2026; não inclui auxílio-alimentação nem descontos.",
         snapshotCaveat:
           "A lista de integrantes é um snapshot do dia anterior. A ausência de associação não significa que o gabinete esteja sem equipe."
       },
@@ -845,7 +937,7 @@ await fs.writeFile(
   JSON.stringify(
     {
       metadata: {
-        version: 4,
+        version: 5,
         generatedAt: new Date().toISOString(),
         snapshotOnly,
         caseCount: cases.length,

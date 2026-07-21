@@ -1,36 +1,45 @@
-# Correção v4.1 — detecção da equipe parlamentar
+# Furo Público — Verba de Gabinete v5
 
-## Problema identificado no log
+## Objetivo
 
-O snapshot trouxe 15.523 linhas e os cabeçalhos corretos, mas o detector retornou
-zero secretários. O arquivo atual usa também os campos `codGrupo` e `grupo`, e
-os cargos podem aparecer como códigos como `SP01`, `SP02`, etc.
+Acrescenta valores individuais, ordenação decrescente e descrição das atribuições
+da equipe, sem confundir nível remuneratório com função exercida.
 
-A versão anterior procurava principalmente o texto literal
-`Secretário Parlamentar`, por isso não reconheceu essas linhas.
+## Arquivos a substituir
 
-## Arquivo a substituir
+- `components/admin-office-budget.tsx`
+- `scripts/camara/detectar-verba-gabinete.mjs`
+- `app/office-budget.css`
 
-`/scripts/camara/detectar-verba-gabinete.mjs`
+## Mudanças
 
-## O que mudou
+- ordenação padrão: maior valor mensal;
+- ranking #1, #2, #3...;
+- valor mensal de tabela por integrante;
+- identificação de nível SP e GRG;
+- filtro por faixa de remuneração;
+- filtro por atribuição formal;
+- resumo da folha fixa estimada;
+- coluna de atribuição formal e descrição;
+- aviso de que SP25C é nível remuneratório, não cargo de chefia;
+- troca de “Nomeação informada” por “Início do registro atual”;
+- valores incorporados também aos dados brutos do módulo.
 
-- reconhece `codGrupo = SP`;
-- reconhece grupo `Secretariado Parlamentar`;
-- reconhece cargos `SP01` a `SP99`;
-- utiliza `grupo`, `codGrupo` e `uriLotacao` na associação;
-- registra amostras completas quando uma linha não puder ser associada;
-- preserva gastos acumulados, classificações, filtros e sinais existentes.
+## Fonte salarial
 
-## Depois de substituir
+Tabela oficial da Câmara vigente desde 18/02/2026.
 
-1. Faça commit na branch `main`.
-2. Aguarde o deploy.
-3. Execute o workflow no modo `snapshot`.
-4. Confira no log:
-   - número de secretários detectados maior que zero;
-   - número de associados maior que zero;
-   - métodos de associação preenchidos.
-5. Atualize o Furo Público com Ctrl + F5.
+O cálculo considera:
+- vencimento do nível SP;
+- GRG quando o código termina em `C`;
+- ausência de GRG quando termina em `S`.
+
+Não inclui auxílio-alimentação nem descontos.
+
+## Depois do commit
+
+Execute apenas:
+
+`Actions → Monitoramento Verba de Gabinete → snapshot`
 
 Não é necessário executar `backfill`.
