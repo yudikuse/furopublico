@@ -12,6 +12,8 @@ type OfficeEmployee = {
   name?: string;
   point?: string;
   category?: string;
+  group?: string;
+  groupCode?: string;
   cargo?: string;
   function?: string;
   lotation?: string;
@@ -336,10 +338,18 @@ function roleInfo(employee: OfficeEmployee) {
     };
   }
 
+  if (raw) {
+    return {
+      label: raw,
+      description:
+        "Texto original publicado no campo função. O sistema preserva a descrição da fonte e não deduz atribuições adicionais pelo nível salarial."
+    };
+  }
+
   return {
-    label: "Não informada no snapshot",
+    label: "Atribuição formal não publicada",
     description:
-      "O nível SP define a remuneração, não a tarefa. A fonte atual não identifica se a pessoa foi designada como assessor, assistente ou auxiliar."
+      "O arquivo informa cargo, nível remuneratório e lotação, mas o campo função veio vazio para este integrante."
   };
 }
 
@@ -350,6 +360,15 @@ function salaryBand(value?: number | null) {
   if (amount >= 10000) return "10to20";
   if (amount >= 5000) return "5to10";
   return "below5";
+}
+
+function originalGroup(employee: OfficeEmployee) {
+  return (
+    employee.group ||
+    employee.category ||
+    (employee.groupCode ? `Grupo ${employee.groupCode}` : "") ||
+    "—"
+  );
 }
 
 export function AdminOfficeBudget({ alert }: Props) {
@@ -412,7 +431,7 @@ export function AdminOfficeBudget({ alert }: Props) {
       withGrg: enrichedStaff.filter((employee) => employee.salary.hasGrg === true).length,
       withoutGrg: enrichedStaff.filter((employee) => employee.salary.hasGrg === false).length,
       rolesInformed: enrichedStaff.filter(
-        (employee) => employee.role.label !== "Não informada no snapshot"
+        (employee) => employee.role.label !== "Atribuição formal não publicada"
       ).length
     };
   }, [enrichedStaff]);
@@ -476,7 +495,7 @@ export function AdminOfficeBudget({ alert }: Props) {
         ...new Set(
           enrichedStaff
             .map((employee) => employee.role.label)
-            .filter((role) => role && role !== "Não informada no snapshot")
+            .filter((role) => role && role !== "Atribuição formal não publicada")
         )
       ].sort((a, b) => String(a).localeCompare(String(b), "pt-BR")),
     [enrichedStaff]
@@ -502,6 +521,8 @@ export function AdminOfficeBudget({ alert }: Props) {
             employee.name,
             employee.point,
             employee.category,
+            employee.group,
+            employee.groupCode,
             employee.cargo,
             employee.function,
             employee.role.label,
@@ -953,7 +974,9 @@ export function AdminOfficeBudget({ alert }: Props) {
                   não prova que a pessoa seja chefe de gabinete nem descreve a
                   atividade executada. A designação formal deve ser Assessor,
                   Assistente ou Auxiliar Parlamentar; quando a fonte não informa
-                  essa designação, o sistema registra “não informada”.
+                  essa designação, o sistema registra “não publicada”. O cargo
+                  original e a função original permanecem visíveis em colunas
+                  separadas.
                 </p>
                 <div>
                   <article>
@@ -999,7 +1022,7 @@ export function AdminOfficeBudget({ alert }: Props) {
               Atribuição formal
               <select value={staffRole} onChange={(event) => setStaffRole(event.target.value)}>
                 <option value="">Todas</option>
-                <option value="Não informada no snapshot">Não informada</option>
+                <option value="Atribuição formal não publicada">Não publicada</option>
                 {staffRoles.map((role) => (
                   <option key={String(role)} value={String(role)}>
                     {String(role)}
@@ -1056,9 +1079,12 @@ export function AdminOfficeBudget({ alert }: Props) {
                   <thead>
                     <tr>
                       <th>Ordem / nome</th>
+                      <th>Cargo na fonte</th>
+                      <th>Grupo/categoria</th>
                       <th>Nível e GRG</th>
                       <th>Valor mensal de tabela</th>
-                      <th>Atribuição formal</th>
+                      <th>Função na fonte</th>
+                      <th>Interpretação da atribuição</th>
                       <th>Início do registro atual</th>
                       <th>Local</th>
                       <th>Lotação</th>
@@ -1074,6 +1100,16 @@ export function AdminOfficeBudget({ alert }: Props) {
                             Ponto: {employee.point || "—"} · associação:{" "}
                             {employee.matchMethod ?? "fonte direta"}
                           </small>
+                        </td>
+                        <td>
+                          <strong>{employee.cargo || "—"}</strong>
+                          <small>Valor original do campo cargo.</small>
+                        </td>
+                        <td>
+                          <strong>{originalGroup(employee)}</strong>
+                          {employee.groupCode ? (
+                            <small>Código do grupo: {employee.groupCode}</small>
+                          ) : null}
                         </td>
                         <td>
                           <strong>{employee.salary.code}</strong>
@@ -1094,6 +1130,10 @@ export function AdminOfficeBudget({ alert }: Props) {
                           <small>
                             Vencimento + GRG; não inclui auxílio-alimentação.
                           </small>
+                        </td>
+                        <td>
+                          <strong>{employee.function || "Campo vazio"}</strong>
+                          <small>Conteúdo original do campo função.</small>
                         </td>
                         <td>
                           <strong>{employee.role.label}</strong>
@@ -1257,10 +1297,10 @@ export function AdminOfficeBudget({ alert }: Props) {
               inclui auxílio-alimentação nem descontos.
             </p>
             <p>
-              O nível SP não define a atividade. As atribuições formais possíveis
-              são Assessor Parlamentar, Assistente Parlamentar e Auxiliar
-              Parlamentar. Quando o snapshot não informa a designação, o sistema
-              não a presume.
+              Cargo, grupo/categoria e função são exibidos separadamente, como
+              vieram do snapshot. O nível SP é usado apenas para interpretar a
+              remuneração. Quando o campo função está vazio, o sistema registra a
+              ausência e não presume assessoramento, assistência, auxílio ou chefia.
             </p>
             <a href={SALARY_TABLE_SOURCE} target="_blank" rel="noreferrer">
               Abrir tabela oficial de remuneração ↗
