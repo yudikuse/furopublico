@@ -1,4 +1,4 @@
-name: Diagnóstico Emendas Parlamentares
+name: Diagnóstico Emendas Parlamentares v2
 
 on:
   workflow_dispatch:
@@ -8,8 +8,18 @@ on:
         required: true
         default: "2023,2024,2025,2026"
         type: string
-      document_sample:
-        description: "Quantidade de emendas cujos documentos serão consultados"
+      amendment_sample:
+        description: "Quantidade de emendas para localizar documentos"
+        required: true
+        default: "160"
+        type: string
+      detail_sample:
+        description: "Quantidade de documentos para abrir em detalhe"
+        required: true
+        default: "300"
+        type: string
+      final_beneficiary_sample:
+        description: "Documentos de pagamento/liquidação para consultar favorecidos finais"
         required: true
         default: "240"
         type: string
@@ -18,13 +28,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: diagnostico-emendas-parlamentares
+  group: diagnostico-emendas-parlamentares-v2
   cancel-in-progress: false
 
 jobs:
   diagnostico:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
 
     env:
       PORTAL_TRANSPARENCIA_API_KEY: ${{ secrets.PORTAL_TRANSPARENCIA_API_KEY }}
@@ -48,31 +58,33 @@ jobs:
         shell: bash
         run: |
           test -n "$PORTAL_TRANSPARENCIA_API_KEY" || {
-            echo "::error::Crie o segredo PORTAL_TRANSPARENCIA_API_KEY em Settings → Secrets and variables → Actions."
+            echo "::error::Crie o segredo PORTAL_TRANSPARENCIA_API_KEY."
             exit 1
           }
 
-          echo "Chave da API do Portal da Transparência disponível."
+          echo "Chave da API disponível."
 
           if [ -n "$NEXT_PUBLIC_SUPABASE_URL" ] && [ -n "$SUPABASE_SERVICE_ROLE_KEY" ]; then
-            echo "O diagnóstico comparará os autores das emendas com os casos existentes."
+            echo "Os autores serão comparados com os casos atuais."
           else
-            echo "::warning::Supabase não configurado nesta execução. A coleta funcionará, mas não comparará autores com os casos atuais."
+            echo "::warning::Supabase ausente; a coleta seguirá sem comparar autores."
           fi
 
-      - name: Executar diagnóstico nacional de emendas
+      - name: Executar diagnóstico nacional v2
         run: |
           node scripts/emendas/coletar-diagnostico.mjs \
             --years="${{ inputs.years }}" \
-            --document-sample="${{ inputs.document_sample }}" \
+            --amendment-sample="${{ inputs.amendment_sample }}" \
+            --detail-sample="${{ inputs.detail_sample }}" \
+            --final-beneficiary-sample="${{ inputs.final_beneficiary_sample }}" \
             --delay-ms=180 \
-            --output=data/emendas/diagnostico
+            --output=data/emendas/diagnostico-v2
 
       - name: Publicar diagnóstico para download
         uses: actions/upload-artifact@v4
         with:
-          name: diagnostico-emendas-${{ github.run_id }}
-          path: data/emendas/diagnostico/
+          name: diagnostico-emendas-v2-${{ github.run_id }}
+          path: data/emendas/diagnostico-v2/
           if-no-files-found: error
           retention-days: 30
 
@@ -80,4 +92,4 @@ jobs:
         if: always()
         run: |
           echo "Esta execução não altera o Supabase nem o site."
-          echo "Os dados foram coletados exclusivamente para avaliar a estrutura das emendas e dos favorecidos."
+          echo "A execução abre documentos de despesa e consulta favorecidos finais."
