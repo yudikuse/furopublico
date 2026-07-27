@@ -1,60 +1,42 @@
-# Furo Público — diagnóstico de emendas v1
+# Furo Público — Emendas: diagnóstico v2
 
-Esta etapa coleta dados nacionais de emendas parlamentares antes da reorganização
-do site. Ela **não altera o Supabase e não muda nenhum caso**.
+O primeiro diagnóstico retornou 3.403 referências de documentos, mas o endpoint
+`/emendas/documentos/{codigo}` contém apenas data, fase e códigos do documento.
 
-## Arquivos
+A v2 acrescenta duas consultas:
 
-Adicione:
+1. `/despesas/documentos/{codigo}` — abre o documento de despesa;
+2. `/despesas/favorecidos-finais-por-documento` — procura o destinatário final.
+
+## Substituir no repositório
 
 - `scripts/emendas/coletar-diagnostico.mjs`
 - `.github/workflows/emendas-diagnostico.yml`
 
-## Segredo necessário
+## Executar
 
-A API do Portal da Transparência exige uma chave.
+Actions → Diagnóstico Emendas Parlamentares v2 → Run workflow
 
-1. Cadastre-se na página oficial da API do Portal da Transparência.
-2. No GitHub, abra:
-   `Settings → Secrets and variables → Actions`.
-3. Crie:
-   `PORTAL_TRANSPARENCIA_API_KEY`
-4. Cole a chave recebida.
-
-Não envie a chave no chat.
-
-Os segredos do Supabase já usados pelo projeto são opcionais para a coleta, mas
-permitem comparar os autores das emendas com os casos parlamentares existentes.
-
-## Execução
-
-`Actions → Diagnóstico Emendas Parlamentares → Run workflow`
-
-Parâmetros iniciais:
+Parâmetros recomendados:
 
 - years: `2023,2024,2025,2026`
-- document_sample: `240`
+- amendment_sample: `160`
+- detail_sample: `300`
+- final_beneficiary_sample: `240`
 
-## Saída
+A execução pode levar aproximadamente 25 a 60 minutos, conforme a velocidade e
+os limites da API.
 
-Ao final, baixe o artefato `diagnostico-emendas-...`.
+## Segurança dos dados
 
-Ele contém:
+- não escreve no Supabase;
+- não altera o site;
+- não classifica irregularidade;
+- mantém empenho, liquidação e pagamento separados;
+- preserva os objetos brutos para auditoria.
 
-- JSON completo do diagnóstico;
-- relatório Markdown;
-- emendas normalizadas;
-- amostra de documentos de despesa;
-- beneficiários encontrados;
-- cobertura de cada campo;
-- autores correspondentes e não correspondentes aos casos atuais.
+## Correção adicional
 
-## O que será decidido com o resultado
-
-- beneficiário formal versus favorecido do documento;
-- presença de CPF/CNPJ;
-- convênios e instrumentos;
-- fases empenhada, liquidada e paga;
-- possibilidade de chegar ao contratado final;
-- cobertura nacional real dos casos existentes;
-- estrutura definitiva da aba `Quem recebeu`.
+A v1 agrupava uma emenda apenas pelo código e podia descartar linhas referentes
+a funções, subfunções ou localidades diferentes. A v2 preserva essas linhas como
+`allocations` e soma os valores dentro de cada código de emenda.

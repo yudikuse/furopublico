@@ -1,4 +1,3 @@
 node --check: aprovado
-A coleta não escreve no Supabase.
-O teste real da API depende da chave do Portal da Transparência.
-O normalizador preserva os objetos brutos para revisão do esquema.
+YAML: aprovado
+Não foi possível testar a API localmente porque a chave permanece somente no GitHub.
