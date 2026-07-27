@@ -1,45 +1,60 @@
-# Furo Público — Verba de Gabinete v5
+# Furo Público — diagnóstico de emendas v1
 
-## Objetivo
+Esta etapa coleta dados nacionais de emendas parlamentares antes da reorganização
+do site. Ela **não altera o Supabase e não muda nenhum caso**.
 
-Acrescenta valores individuais, ordenação decrescente e descrição das atribuições
-da equipe, sem confundir nível remuneratório com função exercida.
+## Arquivos
 
-## Arquivos a substituir
+Adicione:
 
-- `components/admin-office-budget.tsx`
-- `scripts/camara/detectar-verba-gabinete.mjs`
-- `app/office-budget.css`
+- `scripts/emendas/coletar-diagnostico.mjs`
+- `.github/workflows/emendas-diagnostico.yml`
 
-## Mudanças
+## Segredo necessário
 
-- ordenação padrão: maior valor mensal;
-- ranking #1, #2, #3...;
-- valor mensal de tabela por integrante;
-- identificação de nível SP e GRG;
-- filtro por faixa de remuneração;
-- filtro por atribuição formal;
-- resumo da folha fixa estimada;
-- coluna de atribuição formal e descrição;
-- aviso de que SP25C é nível remuneratório, não cargo de chefia;
-- troca de “Nomeação informada” por “Início do registro atual”;
-- valores incorporados também aos dados brutos do módulo.
+A API do Portal da Transparência exige uma chave.
 
-## Fonte salarial
+1. Cadastre-se na página oficial da API do Portal da Transparência.
+2. No GitHub, abra:
+   `Settings → Secrets and variables → Actions`.
+3. Crie:
+   `PORTAL_TRANSPARENCIA_API_KEY`
+4. Cole a chave recebida.
 
-Tabela oficial da Câmara vigente desde 18/02/2026.
+Não envie a chave no chat.
 
-O cálculo considera:
-- vencimento do nível SP;
-- GRG quando o código termina em `C`;
-- ausência de GRG quando termina em `S`.
+Os segredos do Supabase já usados pelo projeto são opcionais para a coleta, mas
+permitem comparar os autores das emendas com os casos parlamentares existentes.
 
-Não inclui auxílio-alimentação nem descontos.
+## Execução
 
-## Depois do commit
+`Actions → Diagnóstico Emendas Parlamentares → Run workflow`
 
-Execute apenas:
+Parâmetros iniciais:
 
-`Actions → Monitoramento Verba de Gabinete → snapshot`
+- years: `2023,2024,2025,2026`
+- document_sample: `240`
 
-Não é necessário executar `backfill`.
+## Saída
+
+Ao final, baixe o artefato `diagnostico-emendas-...`.
+
+Ele contém:
+
+- JSON completo do diagnóstico;
+- relatório Markdown;
+- emendas normalizadas;
+- amostra de documentos de despesa;
+- beneficiários encontrados;
+- cobertura de cada campo;
+- autores correspondentes e não correspondentes aos casos atuais.
+
+## O que será decidido com o resultado
+
+- beneficiário formal versus favorecido do documento;
+- presença de CPF/CNPJ;
+- convênios e instrumentos;
+- fases empenhada, liquidada e paga;
+- possibilidade de chegar ao contratado final;
+- cobertura nacional real dos casos existentes;
+- estrutura definitiva da aba `Quem recebeu`.

@@ -1,9 +1,4 @@
-VALIDAÇÃO
-
-- detector: `node --check` aprovado;
-- componente TSX: transpilação sintática aprovada;
-- tabela salarial SP01–SP25 incorporada;
-- soma testada para os 25 integrantes de Glaustin: R$ 165.614,39;
-- maior valor testado: SP25C = R$ 25.958,90;
-- valores financeiros da CEAP não foram alterados;
-- acumulados de verba de gabinete não foram alterados.
+node --check: aprovado
+A coleta não escreve no Supabase.
+O teste real da API depende da chave do Portal da Transparência.
+O normalizador preserva os objetos brutos para revisão do esquema.
