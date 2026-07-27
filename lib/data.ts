@@ -276,7 +276,16 @@ async function selectInBatches(
       .select(columns)
       .in(field, batch);
     if (error) throw error;
-    rows.push(...((data ?? []) as Record<string, unknown>[]));
+
+    const batchRows: unknown = data ?? [];
+
+    if (!Array.isArray(batchRows)) continue;
+
+    for (const row of batchRows) {
+      if (row && typeof row === "object" && !Array.isArray(row)) {
+        rows.push(row as Record<string, unknown>);
+      }
+    }
   }
 
   return rows;
