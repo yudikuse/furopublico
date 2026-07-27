@@ -1,0 +1,83 @@
+name: Diagnóstico Emendas Parlamentares
+
+on:
+  workflow_dispatch:
+    inputs:
+      years:
+        description: "Anos separados por vírgula"
+        required: true
+        default: "2023,2024,2025,2026"
+        type: string
+      document_sample:
+        description: "Quantidade de emendas cujos documentos serão consultados"
+        required: true
+        default: "240"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: diagnostico-emendas-parlamentares
+  cancel-in-progress: false
+
+jobs:
+  diagnostico:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    env:
+      PORTAL_TRANSPARENCIA_API_KEY: ${{ secrets.PORTAL_TRANSPARENCIA_API_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Validar configuração
+        shell: bash
+        run: |
+          test -n "$PORTAL_TRANSPARENCIA_API_KEY" || {
+            echo "::error::Crie o segredo PORTAL_TRANSPARENCIA_API_KEY em Settings → Secrets and variables → Actions."
+            exit 1
+          }
+
+          echo "Chave da API do Portal da Transparência disponível."
+
+          if [ -n "$NEXT_PUBLIC_SUPABASE_URL" ] && [ -n "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "O diagnóstico comparará os autores das emendas com os casos existentes."
+          else
+            echo "::warning::Supabase não configurado nesta execução. A coleta funcionará, mas não comparará autores com os casos atuais."
+          fi
+
+      - name: Executar diagnóstico nacional de emendas
+        run: |
+          node scripts/emendas/coletar-diagnostico.mjs \
+            --years="${{ inputs.years }}" \
+            --document-sample="${{ inputs.document_sample }}" \
+            --delay-ms=180 \
+            --output=data/emendas/diagnostico
+
+      - name: Publicar diagnóstico para download
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostico-emendas-${{ github.run_id }}
+          path: data/emendas/diagnostico/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Resumo da execução
+        if: always()
+        run: |
+          echo "Esta execução não altera o Supabase nem o site."
+          echo "Os dados foram coletados exclusivamente para avaliar a estrutura das emendas e dos favorecidos."
