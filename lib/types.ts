@@ -283,6 +283,102 @@ export type AlertEntityNetwork = {
   disclaimer: string;
 };
 
+
+export type AmendmentProcessingStatus =
+  | "pending"
+  | "partial"
+  | "complete"
+  | "error";
+
+export type AmendmentModuleAmendment = {
+  id: string;
+  code: string;
+  year: number;
+  authorName: string;
+  type?: string;
+  number?: string;
+  committed: number;
+  liquidated: number;
+  paid: number;
+  restPaid: number;
+  localities: string[];
+  functions: string[];
+  subfunctions: string[];
+  processingStatus: AmendmentProcessingStatus;
+  documentCount: number;
+  beneficiaryCount: number;
+  processedAt?: string;
+  lastError?: string;
+};
+
+export type AmendmentModuleBeneficiary = {
+  id: string;
+  name: string;
+  taxId?: string;
+  type?: string;
+  state?: string;
+  municipality?: string;
+  roles: Array<
+    "favorecido_documento" | "intermediario_financeiro" | "beneficiario_final"
+  >;
+  totalRelated: number;
+  excludedIntermediaryAmount: number;
+  documentCount: number;
+  amendmentCount: number;
+  firstDate?: string;
+  lastDate?: string;
+};
+
+export type AmendmentModuleDocumentBeneficiary = {
+  id: string;
+  name: string;
+  taxId?: string;
+  role:
+    | "favorecido_documento"
+    | "intermediario_financeiro"
+    | "beneficiario_final";
+  amount?: number;
+};
+
+export type AmendmentModuleDocument = {
+  id: string;
+  code: string;
+  summarizedCode?: string;
+  date?: string;
+  year?: number;
+  phase?: string;
+  species?: string;
+  amount?: number;
+  formalBeneficiaryName?: string;
+  formalBeneficiaryTaxId?: string;
+  formalBeneficiaryState?: string;
+  formalBeneficiaryMunicipality?: string;
+  formalBeneficiaryIsIntermediary: boolean;
+  amendmentCodes: string[];
+  beneficiaries: AmendmentModuleDocumentBeneficiary[];
+};
+
+export type AmendmentModuleData = {
+  summary: {
+    amendmentCount: number;
+    documentCount: number;
+    beneficiaryCount: number;
+    committed: number;
+    liquidated: number;
+    paid: number;
+    restPaid: number;
+    pendingAmendmentCount: number;
+    partialAmendmentCount: number;
+    completeAmendmentCount: number;
+    errorAmendmentCount: number;
+    intermediaryDocumentCount: number;
+    resolvedDocumentCount: number;
+  };
+  amendments: AmendmentModuleAmendment[];
+  beneficiaries: AmendmentModuleBeneficiary[];
+  documents: AmendmentModuleDocument[];
+};
+
 export type InvestigationAlert = {
   id: string;
   title: string;

@@ -1,11 +1,12 @@
 import "@/app/office-budget.css";
+import "@/app/amendments.css";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminAlertForm } from "@/components/admin-alert-form";
 import { AdminParliamentaryModules } from "@/components/admin-parliamentary-modules";
 import { AdminEnrichmentPanel } from "@/components/admin-enrichment-panel";
 import { AdminEntityNetwork } from "@/components/admin-entity-network";
-import { getAlertById } from "@/lib/data";
+import { getAlertById, getAmendmentModuleByAlertId } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +52,10 @@ function collectDocumentLinks(evidence: Record<string, unknown>) {
 
 export default async function AlertDetailPage({ params }: PageProps) {
   const { id } = await params;
-  const alert = await getAlertById(id);
+  const [alert, amendments] = await Promise.all([
+    getAlertById(id),
+    getAmendmentModuleByAlertId(id)
+  ]);
   if (!alert) notFound();
 
   const evidence = alert.evidence as Record<string, unknown>;
@@ -81,7 +85,7 @@ export default async function AlertDetailPage({ params }: PageProps) {
           <b className={`severity severity-${alert.severity}`}>{alert.severity}</b>
         </div>
 
-        <AdminParliamentaryModules alert={alert} />
+        <AdminParliamentaryModules alert={alert} amendments={amendments} />
 
         {alert.enrichment ? (
           <div className="admin-panel legacy-enrichment-warning">

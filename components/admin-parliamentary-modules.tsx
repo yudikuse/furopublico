@@ -1,13 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { InvestigationAlert } from "@/lib/types";
+import type { AmendmentModuleData, InvestigationAlert } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { AdminParliamentaryCaseV5 } from "@/components/admin-parliamentary-case-v5";
 import { AdminOfficeBudget } from "@/components/admin-office-budget";
+import { AdminAmendments } from "@/components/admin-amendments";
 
 type Props = {
   alert: InvestigationAlert;
+  amendments: AmendmentModuleData;
 };
 
 type ModuleView = "overview" | "ceap" | "office" | "amendments";
@@ -54,7 +56,7 @@ function usageLabel(value?: string) {
   return labels[value ?? ""] ?? value?.replaceAll("-", " ") ?? "sem classificação";
 }
 
-export function AdminParliamentaryModules({ alert }: Props) {
+export function AdminParliamentaryModules({ alert, amendments }: Props) {
   const evidence = alert.evidence as Record<string, unknown>;
   const officeBudget = evidence.officeBudget as
     | { summary?: OfficeBudgetSummary }
@@ -69,16 +71,19 @@ export function AdminParliamentaryModules({ alert }: Props) {
   const ceapAmount = Number(evidence.financialAmount ?? alert.amount ?? 0);
   const hasCeap = ceapDocuments > 0 || ceapSignals > 0;
   const hasOffice = Boolean(officeBudget);
+  const hasAmendments = amendments.summary.amendmentCount > 0;
   const [view, setView] = useState<ModuleView>(
     hasCeap ? "overview" : hasOffice ? "office" : "overview"
   );
 
   const availableModules = useMemo(
     () =>
-      [hasCeap ? "CEAP" : null, hasOffice ? "Verba de gabinete" : null].filter(
-        Boolean
-      ),
-    [hasCeap, hasOffice]
+      [
+        hasCeap ? "CEAP" : null,
+        hasOffice ? "Verba de gabinete" : null,
+        hasAmendments ? "Emendas" : null
+      ].filter(Boolean),
+    [hasAmendments, hasCeap, hasOffice]
   );
 
   const staffLabel =
@@ -126,9 +131,10 @@ export function AdminParliamentaryModules({ alert }: Props) {
           <button
             type="button"
             className={view === "amendments" ? "active" : ""}
+            disabled={!hasAmendments}
             onClick={() => setView("amendments")}
           >
-            Emendas · próximo módulo
+            Emendas {hasAmendments ? "" : "· sem dados"}
           </button>
         </nav>
       </section>
@@ -180,13 +186,24 @@ export function AdminParliamentaryModules({ alert }: Props) {
               </p>
             </button>
 
-            <button type="button" onClick={() => setView("amendments")}>
+            <button
+              type="button"
+              disabled={!hasAmendments}
+              onClick={() => setView("amendments")}
+            >
               <span>Emendas parlamentares</span>
-              <strong>Próximo módulo</strong>
-              <small>Sem coleta implantada</small>
+              <strong>
+                {hasAmendments
+                  ? formatCurrency(amendments.summary.paid)
+                  : "Sem dados"}
+              </strong>
+              <small>
+                {amendments.summary.amendmentCount} emenda(s) · {" "}
+                {amendments.summary.beneficiaryCount} beneficiário(s)
+              </small>
               <p>
-                Emenda, favorecido, município, instrumento, contrato e empresa
-                serão mantidos como entidades separadas.
+                Emendas, documentos, favorecidos formais, intermediários e
+                beneficiários finais permanecem identificados separadamente.
               </p>
             </button>
           </div>
@@ -205,16 +222,7 @@ export function AdminParliamentaryModules({ alert }: Props) {
 
       {view === "office" ? <AdminOfficeBudget alert={alert} /> : null}
 
-      {view === "amendments" ? (
-        <section className="admin-panel office-budget-empty">
-          <p className="eyebrow">MÓDULO FUTURO</p>
-          <h2>Emendas parlamentares</h2>
-          <p>
-            Este módulo será implantado depois da validação da verba de gabinete.
-            Ele não reutilizará valores ou sinais da CEAP e da folha.
-          </p>
-        </section>
-      ) : null}
+      {view === "amendments" ? <AdminAmendments data={amendments} /> : null}
     </div>
   );
 }

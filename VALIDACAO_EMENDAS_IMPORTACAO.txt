@@ -1,0 +1,6 @@
+Importador scripts/emendas/importar-emendas.mjs: node --check aprovado.
+Workflow emendas-importacao.yml: YAML aprovado.
+Workflow emendas-diagnostico.yml: YAML aprovado.
+Arquivos TS/TSX alterados: transpile sintático aprovado.
+Verificação dirigida de tipos com shims: aprovada.
+Next build completo: não executado; npm ci não ficou disponível no ambiente.
